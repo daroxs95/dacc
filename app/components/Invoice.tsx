@@ -6,14 +6,25 @@ type Item = {
     rate: number;
 }
 
+type Company = {
+    name: string;
+    address: string;
+    city: string;
+    country: string;
+    email: string;
+    postalCode: string;
+}
+
 interface InvoiceProps {
     created: string;
     due: string;
     invoiceNumber: string;
     items: Item[];
+    showLogo?: boolean;
+    company?: Company;
 }
 
-export function Invoice({created, due, invoiceNumber, items}: InvoiceProps) {
+export function Invoice({created, due, invoiceNumber, items, showLogo, company}: InvoiceProps) {
     const total = items.reduce((acc, curr) => {
         return acc + curr.quantity * curr.rate
     }, 0);
@@ -25,13 +36,13 @@ export function Invoice({created, due, invoiceNumber, items}: InvoiceProps) {
                         <table>
                             <tr>
                                 <td className={styles.title}>
-                                    <img
+                                    {showLogo && <img
                                         src="/darologo.png"
                                         style={{
                                             width: "100%",
                                             maxWidth: "80px"
                                         }}
-                                    />
+                                    />}
                                 </td>
 
                                 <td>
@@ -51,10 +62,10 @@ export function Invoice({created, due, invoiceNumber, items}: InvoiceProps) {
                             <th>Facturar a</th>
                             <tr>
                                 <td>
-                                    Darián López Utra<br/>
-                                    Concordia 202, Centro Habana<br/>
-                                    La Habana, Cuba, 10200<br/>
-                                    daroxs95@gmail.com
+                                    {company?.name}<br/>
+                                    {company?.address}<br/>
+                                    {company?.city}, {company?.country}, {company?.postalCode}<br/>
+                                    {company?.email}
                                 </td>
 
                                 <td>

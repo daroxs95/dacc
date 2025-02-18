@@ -15,9 +15,23 @@ export default function Home() {
     const [created, setCreated] = useState("");
     const [due, setDue] = useState("");
     const [description, setDescription] = useState("");
+    const [showLogo, setShowLogo] = useState(true);
+
+    const [company, setCompany] = useState({
+        name: "Example Company",
+        address: "1234 Main St",
+        city: "Springfield",
+        country: "USA",
+        email: "example@example.com",
+        postalCode: "12345"
+    });
 
     const saveToLocalStorage = () => {
-        localStorage.setItem("data", JSON.stringify({invoiceNumber, created, due, description}));
+        localStorage.setItem("data", JSON.stringify({
+            invoiceNumber, created, due, description,
+            company,
+            showLogo
+        }));
     }
 
     useEffect(() => {
@@ -29,6 +43,8 @@ export default function Home() {
             setCreated(parsedData.created);
             setDue(parsedData.due);
             setDescription(parsedData.description);
+            setCompany(parsedData.company);
+            setShowLogo(parsedData.showLogo);
         }
     }, []);
 
@@ -43,6 +59,7 @@ export default function Home() {
             </nav>
             <br/>
             <div className={`${styles.controls} w-100 m-auto noPrint vstack`}>
+                <h4>Factura</h4>
                 <div className={"hstack"}>
                     <div className="f-column vstack">
                         <label>Factura #</label>
@@ -56,20 +73,57 @@ export default function Home() {
                         <label>Fecha de vencimiento</label>
                         <input value={due} onChange={(e) => setDue(e.target.value)}/>
                     </div>
+                    <div className="f-column vstack">
+                        <label>Mostrar logo</label>
+                        <input type="checkbox" checked={showLogo} onChange={(e) => setShowLogo(e.target.checked)}/>
+                    </div>
                 </div>
                 <div className="f-column vstack">
                     <label>Descripcion</label>
                     <input value={description} onChange={(e) => setDescription(e.target.value)}/>
                 </div>
-                <button
-                    id="printButton"
-                    onClick={() => {
-                        saveToLocalStorage();
-                        window.print();
-                    }}
-                >
-                    Print invoice
-                </button>
+                <div className={"separator"}/>
+                <h4>Compañía</h4>
+                <div className="hstack f-wrap">
+                    <div className="f-column vstack">
+                        <label>Nombre</label>
+                        <input value={company.name} onChange={(e) => setCompany({...company, name: e.target.value})}/>
+                    </div>
+                    <div className="f-column vstack">
+                        <label>Dirección</label>
+                        <input value={company.address}
+                               onChange={(e) => setCompany({...company, address: e.target.value})}/>
+                    </div>
+                    <div className="f-column vstack">
+                        <label>Ciudad</label>
+                        <input value={company.city} onChange={(e) => setCompany({...company, city: e.target.value})}/>
+                    </div>
+                    <div className="f-column vstack">
+                        <label>País</label>
+                        <input value={company.country}
+                               onChange={(e) => setCompany({...company, country: e.target.value})}/>
+                    </div>
+                    <div className="f-column vstack">
+                        <label>Email</label>
+                        <input value={company.email} onChange={(e) => setCompany({...company, email: e.target.value})}/>
+                    </div>
+                    <div className="f-column vstack">
+                        <label>Código postal</label>
+                        <input value={company.postalCode}
+                               onChange={(e) => setCompany({...company, postalCode: e.target.value})}/>
+                    </div>
+                </div>
+                <div>
+                    <button
+                        id="printButton"
+                        onClick={() => {
+                            saveToLocalStorage();
+                            window.print();
+                        }}
+                    >
+                        Print invoice
+                    </button>
+                </div>
             </div>
             <br/>
             <br/>
@@ -84,6 +138,8 @@ export default function Home() {
                         rate: 25
                     }
                 ]}
+                showLogo={showLogo}
+                company={company}
             />
         </>
     );
