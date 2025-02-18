@@ -27,6 +27,7 @@ export default function Home() {
         email: "example@example.com",
         postalCode: "12345"
     });
+    const [paid, setPaid] = useState(false);
 
     const saveToLocalStorage = () => {
         localStorage.setItem("data", JSON.stringify({
@@ -83,6 +84,11 @@ export default function Home() {
                         <label>Mostrar logo</label>
                         <input type="checkbox" checked={showLogo} onChange={(e) => setShowLogo(e.target.checked)}/>
                     </div>
+                    <div className="f-column vstack">
+                        <label>Pagada</label>
+                        <input type="checkbox" onChange={(e) => setPaid(e.target.checked)}/>
+                    </div>
+                    
                 </div>
                 <div className="f-column vstack">
                     <label>Descripcion</label>
@@ -102,29 +108,29 @@ export default function Home() {
                 <div className="hstack f-wrap">
                     <div className="f-column vstack">
                         <label>Nombre</label>
-                        <input value={company.name} onChange={(e) => setCompany({...company, name: e.target.value})}/>
+                        <input value={company?.name} onChange={(e) => setCompany({...company, name: e.target.value})}/>
                     </div>
                     <div className="f-column vstack">
                         <label>Dirección</label>
-                        <input value={company.address}
+                        <input value={company?.address}
                                onChange={(e) => setCompany({...company, address: e.target.value})}/>
                     </div>
                     <div className="f-column vstack">
                         <label>Ciudad</label>
-                        <input value={company.city} onChange={(e) => setCompany({...company, city: e.target.value})}/>
+                        <input value={company?.city} onChange={(e) => setCompany({...company, city: e.target.value})}/>
                     </div>
                     <div className="f-column vstack">
                         <label>País</label>
-                        <input value={company.country}
+                        <input value={company?.country}
                                onChange={(e) => setCompany({...company, country: e.target.value})}/>
                     </div>
                     <div className="f-column vstack">
                         <label>Email</label>
-                        <input value={company.email} onChange={(e) => setCompany({...company, email: e.target.value})}/>
+                        <input value={company?.email} onChange={(e) => setCompany({...company, email: e.target.value})}/>
                     </div>
                     <div className="f-column vstack">
                         <label>Código postal</label>
-                        <input value={company.postalCode}
+                        <input value={company?.postalCode}
                                onChange={(e) => setCompany({...company, postalCode: e.target.value})}/>
                     </div>
                 </div>
@@ -156,6 +162,7 @@ export default function Home() {
                 ]}
                 showLogo={showLogo}
                 company={company}
+                paid={paid}
             />
         </>
     );

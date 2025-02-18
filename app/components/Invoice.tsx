@@ -22,9 +22,10 @@ interface InvoiceProps {
     items: Item[];
     showLogo?: boolean;
     company?: Company;
+    paid?: boolean;
 }
 
-export function Invoice({created, due, invoiceNumber, items, showLogo, company}: InvoiceProps) {
+export function Invoice({created, due, invoiceNumber, items, showLogo, company, paid}: InvoiceProps) {
     const total = items.reduce((acc, curr) => {
         return acc + curr.quantity * curr.rate
     }, 0);
@@ -114,7 +115,28 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company}:
                     <td>
                         Total: ${total}
                     </td>
+                    
                 </tr>
+                {paid&&
+                    (<>
+                        <tr className={styles.item}>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td>
+                                Pago: (-) ${total}
+                            </td>
+                        </tr>
+                        <tr className={styles.total}>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td>
+                                Saldo adeudado: ${0}
+                            </td>
+                        </tr>
+                    </>)
+                }
             </table>
         </div>
     )
