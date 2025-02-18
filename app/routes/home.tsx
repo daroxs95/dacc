@@ -15,6 +15,8 @@ export default function Home() {
     const [created, setCreated] = useState("");
     const [due, setDue] = useState("");
     const [description, setDescription] = useState("");
+    const [quantity, setQuantity] = useState(0);
+    const [rate, setRate] = useState(0);
     const [showLogo, setShowLogo] = useState(true);
 
     const [company, setCompany] = useState({
@@ -30,7 +32,9 @@ export default function Home() {
         localStorage.setItem("data", JSON.stringify({
             invoiceNumber, created, due, description,
             company,
-            showLogo
+            showLogo,
+            quantity,
+            rate
         }));
     }
 
@@ -45,6 +49,8 @@ export default function Home() {
             setDescription(parsedData.description);
             setCompany(parsedData.company);
             setShowLogo(parsedData.showLogo);
+            setQuantity(parsedData.quantity);
+            setRate(parsedData.rate);
         }
     }, []);
 
@@ -82,6 +88,15 @@ export default function Home() {
                     <label>Descripcion</label>
                     <input value={description} onChange={(e) => setDescription(e.target.value)}/>
                 </div>
+                <div className="f-column vstack">
+                    <label>Cantidad</label>
+                    <input type="number" value={quantity} onChange={(e) => setQuantity(parseInt(e.target.value))}/>
+                </div>
+                <div className="f-column vstack">
+                    <label>Rate</label>
+                    <input value={rate} type="number" onChange={(e) => setRate(parseInt(e.target.value))}/>
+                </div>
+
                 <div className={"separator"}/>
                 <h4>Compañía</h4>
                 <div className="hstack f-wrap">
@@ -113,6 +128,7 @@ export default function Home() {
                                onChange={(e) => setCompany({...company, postalCode: e.target.value})}/>
                     </div>
                 </div>
+
                 <div>
                     <button
                         id="printButton"
@@ -133,9 +149,9 @@ export default function Home() {
                 due={due}
                 items={[
                     {
-                        description: description,
-                        quantity: 160,
-                        rate: 25
+                        description,
+                        quantity,
+                        rate
                     }
                 ]}
                 showLogo={showLogo}
