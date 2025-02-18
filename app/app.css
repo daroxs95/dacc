@@ -13,3 +13,7 @@ body {
         display: none !important;
     }
 }
+
+:root {
+    interpolate-size: allow-keywords;
+}

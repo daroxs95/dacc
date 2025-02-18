@@ -1,12 +1,13 @@
 import type {Route} from "./+types/home";
-import {Invoice} from "~/components/Invoice";
+import {Invoice} from "~/components/Invoice/Invoice";
 import styles from "./home.module.css";
 import {useEffect, useState} from "react";
+import {Navbar} from "~/components/Navbar/Navbar";
 
 export function meta({}: Route.MetaArgs) {
     return [
-        {title: "New React Router App"},
-        {name: "description", content: "Welcome to React Router!"},
+        {title: "Dacc, simple invoicing"},
+        {name: "description", content: "Invoicing made simple with Dacc"},
     ];
 }
 
@@ -57,83 +58,92 @@ export default function Home() {
 
     return (
         <>
-            <nav className={`${styles.nav} noPrint`}>
-                <div className={`${styles.navContent} w-100 m-auto `}>
-                    <h2>
-                        DInvoicing
-                    </h2>
-                </div>
-            </nav>
+            <Navbar/>
             <br/>
             <div className={`${styles.controls} w-100 m-auto noPrint vstack`}>
-                <h4>Factura</h4>
-                <div className={"hstack"}>
-                    <div className="f-column vstack">
-                        <label>Factura #</label>
-                        <input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)}/>
-                    </div>
-                    <div className="f-column vstack">
-                        <label>Creada</label>
-                        <input value={created} onChange={(e) => setCreated(e.target.value)}/>
-                    </div>
-                    <div className="f-column vstack">
-                        <label>Fecha de vencimiento</label>
-                        <input value={due} onChange={(e) => setDue(e.target.value)}/>
-                    </div>
-                    <div className="f-column vstack">
-                        <label>Mostrar logo</label>
-                        <input type="checkbox" checked={showLogo} onChange={(e) => setShowLogo(e.target.checked)}/>
-                    </div>
-                    <div className="f-column vstack">
-                        <label>Pagada</label>
-                        <input type="checkbox" onChange={(e) => setPaid(e.target.checked)}/>
-                    </div>
-                    
-                </div>
-                <div className="f-column vstack">
-                    <label>Descripcion</label>
-                    <input value={description} onChange={(e) => setDescription(e.target.value)}/>
-                </div>
-                <div className="f-column vstack">
-                    <label>Cantidad</label>
-                    <input type="number" value={quantity} onChange={(e) => setQuantity(parseInt(e.target.value))}/>
-                </div>
-                <div className="f-column vstack">
-                    <label>Rate</label>
-                    <input value={rate} type="number" onChange={(e) => setRate(parseInt(e.target.value))}/>
-                </div>
+                <details className="card p-0 no-shadow">
+                    <summary>
+                        <h4>Factura</h4>
+                    </summary>
 
-                <div className={"separator"}/>
-                <h4>Compañía</h4>
-                <div className="hstack f-wrap">
-                    <div className="f-column vstack">
-                        <label>Nombre</label>
-                        <input value={company?.name} onChange={(e) => setCompany({...company, name: e.target.value})}/>
+                    <div className="hstack f-wrap p-def">
+                        <div className="f-column vstack f-grow">
+                            <label>Factura #</label>
+                            <input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)}/>
+                        </div>
+                        <div className="f-column vstack f-grow">
+                            <label>Creada</label>
+                            <input value={created} onChange={(e) => setCreated(e.target.value)}/>
+                        </div>
+                        <div className="f-column vstack f-grow">
+                            <label>Fecha de vencimiento</label>
+                            <input value={due} onChange={(e) => setDue(e.target.value)}/>
+                        </div>
+                        <div className="f-column vstack">
+                            <label>Mostrar logo</label>
+                            <input type="checkbox" checked={showLogo} onChange={(e) => setShowLogo(e.target.checked)}/>
+                        </div>
+                        <div className="f-column vstack">
+                            <label>Pagada</label>
+                            <input type="checkbox" onChange={(e) => setPaid(e.target.checked)}/>
+                        </div>
                     </div>
-                    <div className="f-column vstack">
-                        <label>Dirección</label>
-                        <input value={company?.address}
-                               onChange={(e) => setCompany({...company, address: e.target.value})}/>
+
+                    <div className="f-column vstack p-def">
+                        <label>Descripcion</label>
+                        <input value={description} onChange={(e) => setDescription(e.target.value)}/>
                     </div>
-                    <div className="f-column vstack">
-                        <label>Ciudad</label>
-                        <input value={company?.city} onChange={(e) => setCompany({...company, city: e.target.value})}/>
+                    <div className="hstack f-wrap p-def">
+                        <div className="f-column vstack f-grow">
+                            <label>Cantidad</label>
+                            <input type="number" value={quantity}
+                                   onChange={(e) => setQuantity(parseInt(e.target.value))}/>
+                        </div>
+                        <div className="f-column vstack f-grow">
+                            <label>Rate</label>
+                            <input value={rate} type="number" onChange={(e) => setRate(parseInt(e.target.value))}/>
+                        </div>
                     </div>
-                    <div className="f-column vstack">
-                        <label>País</label>
-                        <input value={company?.country}
-                               onChange={(e) => setCompany({...company, country: e.target.value})}/>
+
+                </details>
+
+                <details className="card p-0 no-shadow">
+                    <summary>
+                        <h4>Compañía</h4>
+                    </summary>
+                    <div className="hstack f-wrap p-def">
+                        <div className="f-column vstack f-grow">
+                            <label>Nombre</label>
+                            <input value={company?.name}
+                                   onChange={(e) => setCompany({...company, name: e.target.value})}/>
+                        </div>
+                        <div className="f-column vstack f-grow">
+                            <label>Dirección</label>
+                            <input value={company?.address}
+                                   onChange={(e) => setCompany({...company, address: e.target.value})}/>
+                        </div>
+                        <div className="f-column vstack f-grow">
+                            <label>Ciudad</label>
+                            <input value={company?.city}
+                                   onChange={(e) => setCompany({...company, city: e.target.value})}/>
+                        </div>
+                        <div className="f-column vstack f-grow">
+                            <label>País</label>
+                            <input value={company?.country}
+                                   onChange={(e) => setCompany({...company, country: e.target.value})}/>
+                        </div>
+                        <div className="f-column vstack f-grow">
+                            <label>Email</label>
+                            <input value={company?.email}
+                                   onChange={(e) => setCompany({...company, email: e.target.value})}/>
+                        </div>
+                        <div className="f-column vstack f-grow">
+                            <label>Código postal</label>
+                            <input value={company?.postalCode}
+                                   onChange={(e) => setCompany({...company, postalCode: e.target.value})}/>
+                        </div>
                     </div>
-                    <div className="f-column vstack">
-                        <label>Email</label>
-                        <input value={company?.email} onChange={(e) => setCompany({...company, email: e.target.value})}/>
-                    </div>
-                    <div className="f-column vstack">
-                        <label>Código postal</label>
-                        <input value={company?.postalCode}
-                               onChange={(e) => setCompany({...company, postalCode: e.target.value})}/>
-                    </div>
-                </div>
+                </details>
 
                 <div>
                     <button
@@ -147,8 +157,10 @@ export default function Home() {
                     </button>
                 </div>
             </div>
+
             <br/>
             <br/>
+
             <Invoice
                 invoiceNumber={invoiceNumber}
                 created={created}
@@ -164,6 +176,9 @@ export default function Home() {
                 company={company}
                 paid={paid}
             />
+
+            <br/>
+            <br/>
         </>
     );
 }
