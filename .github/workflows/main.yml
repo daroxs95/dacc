@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: ['master']
+  pull_request:
+    branches: ['master']
+
+concurrency:
+  group: CI
+  cancel-in-progress: true
+
+jobs:
+  surge-deploy:
+    name: Deploy to surge.sh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'true'
+      - name: Use Node.js 18.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+          cache: 'npm'
+      - run: npm i
+      - run: npm run build
+      - name: Deploy to techstackify.surge.sh
+        uses: dswistowski/surge-sh-action@v1
+        with:
+          domain: 'dacc.surge.sh'
+          project: './dist'
+          login: ${{ secrets.surge_login }}
+          token: ${{ secrets.surge_token }}

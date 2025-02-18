@@ -1,15 +1,15 @@
-@import "tailwindcss";
-
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+body {
+    font-family: 'Helvetica Neue', 'Helvetica', Helvetica, Arial, sans-serif;
 }
 
-html,
-body {
-  @apply bg-white dark:bg-gray-950;
+@media print {
+    /* Example of controlling page size & orientation */
+    @page {
+        size: A4 portrait; /* or "portrait" */
+        margin: 0;
+    }
 
-  @media (prefers-color-scheme: dark) {
-    color-scheme: dark;
-  }
+    .noPrint {
+        display: none !important;
+    }
 }
