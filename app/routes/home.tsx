@@ -3,6 +3,8 @@ import {Invoice} from "~/components/Invoice/Invoice";
 import styles from "./home.module.css";
 import {useEffect, useState} from "react";
 import {Navbar} from "~/components/Navbar/Navbar";
+import CompanyForm from "~/components/CompanyForm/CompanyForm";
+import type {Lang} from "~/hooks/useLang";
 
 export function meta({}: Route.MetaArgs) {
     return [
@@ -24,14 +26,9 @@ type Profile = {
     quantity: number;
     rate: number;
     showLogo: boolean;
-    company: {
-        name: string;
-        address: string;
-        city: string;
-        country: string;
-        email: string;
-        postalCode: string;
-    };
+    company: Company;
+    companyToBill: Company;
+    language: Lang;
 }
 
 export default function Home() {
@@ -46,6 +43,7 @@ export default function Home() {
     const [quantity, setQuantity] = useState(0);
     const [rate, setRate] = useState(0);
     const [showLogo, setShowLogo] = useState(true);
+    const [language, setLanguage] = useState<Lang>("es");
 
     const [company, setCompany] = useState({
         name: "Example Company",
@@ -55,6 +53,16 @@ export default function Home() {
         email: "example@example.com",
         postalCode: "12345"
     });
+
+    const [companyToBill, setCompanyToBill] = useState({
+        name: "Example Company",
+        address: "1234 Main St",
+        city: "Springfield",
+        country: "USA",
+        email: "example@example.com",
+        postalCode: "12345"
+    });
+
     const [paid, setPaid] = useState(false);
 
     const saveToLocalStorage = () => {
@@ -101,6 +109,8 @@ export default function Home() {
         setShowLogo(selected.showLogo);
         setQuantity(selected.quantity);
         setRate(selected.rate);
+        setCompanyToBill(selected.companyToBill);
+        setLanguage(selected.language)
     }, [profiles, selectedProfile]);
 
     return (
@@ -132,7 +142,8 @@ export default function Home() {
                         </div>
                         <div className="f-column vstack f-grow">
                             <label>Idioma</label>
-                            <select onChange={(e) => {
+                            <select value={language} onChange={(e) => {
+                                setLanguage(e.currentTarget.value as Lang);
                             }}>
                                 <option value="es">Español</option>
                                 <option value="en"> English</option>
@@ -219,43 +230,17 @@ export default function Home() {
 
                 </details>
 
-                <details className="card p-0 no-shadow">
-                    <summary>
-                        <h4>Compañía</h4>
-                    </summary>
-                    <div className="hstack f-wrap p-def">
-                        <div className="f-column vstack f-grow">
-                            <label>Nombre</label>
-                            <input value={company?.name}
-                                   onChange={(e) => setCompany({...company, name: e.target.value})}/>
-                        </div>
-                        <div className="f-column vstack f-grow">
-                            <label>Dirección</label>
-                            <input value={company?.address}
-                                   onChange={(e) => setCompany({...company, address: e.target.value})}/>
-                        </div>
-                        <div className="f-column vstack f-grow">
-                            <label>Ciudad</label>
-                            <input value={company?.city}
-                                   onChange={(e) => setCompany({...company, city: e.target.value})}/>
-                        </div>
-                        <div className="f-column vstack f-grow">
-                            <label>País</label>
-                            <input value={company?.country}
-                                   onChange={(e) => setCompany({...company, country: e.target.value})}/>
-                        </div>
-                        <div className="f-column vstack f-grow">
-                            <label>Email</label>
-                            <input value={company?.email}
-                                   onChange={(e) => setCompany({...company, email: e.target.value})}/>
-                        </div>
-                        <div className="f-column vstack f-grow">
-                            <label>Código postal</label>
-                            <input value={company?.postalCode}
-                                   onChange={(e) => setCompany({...company, postalCode: e.target.value})}/>
-                        </div>
-                    </div>
-                </details>
+                <CompanyForm
+                    title="Compañía"
+                    company={company}
+                    setCompany={setCompany}
+                />
+
+                <CompanyForm
+                    title="Compañía a facturar"
+                    company={companyToBill}
+                    setCompany={setCompanyToBill}
+                />
 
                 <div>
                     <button
@@ -287,6 +272,8 @@ export default function Home() {
                 showLogo={showLogo}
                 company={company}
                 paid={paid}
+                companyToBill={companyToBill}
+                language={language}
             />
 
             <br/>

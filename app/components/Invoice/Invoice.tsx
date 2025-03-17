@@ -1,18 +1,10 @@
 import styles from "./Invoice.module.css";
+import {type Lang, useLang} from "~/hooks/useLang";
 
 type Item = {
     description: string;
     quantity: number;
     rate: number;
-}
-
-type Company = {
-    name: string;
-    address: string;
-    city: string;
-    country: string;
-    email: string;
-    postalCode: string;
 }
 
 interface InvoiceProps {
@@ -22,13 +14,18 @@ interface InvoiceProps {
     items: Item[];
     showLogo?: boolean;
     company?: Company;
+    companyToBill?: Company;
     paid?: boolean;
+    language: Lang;
 }
 
-export function Invoice({created, due, invoiceNumber, items, showLogo, company, paid}: InvoiceProps) {
+export function Invoice({created, due, invoiceNumber, items, showLogo, company, paid, companyToBill, language}: InvoiceProps) {
     const total = items.reduce((acc, curr) => {
         return acc + curr.quantity * curr.rate
     }, 0);
+
+    const {t} = useLang(language);
+
     return (
         <div className={`${styles.invoiceBox}`}>
             <table cellPadding="0" cellSpacing="0">
@@ -47,9 +44,9 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                                 </td>
 
                                 <td>
-                                    Factura #: {invoiceNumber}<br/>
-                                    Creada: {created}<br/>
-                                    Fecha de vencimiento: {due}
+                                    {t("Invoice")} #: {invoiceNumber}<br/>
+                                    {t("Created")}: {created}<br/>
+                                    {t("Due")}: {due}
                                 </td>
                             </tr>
                         </table>
@@ -60,7 +57,7 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                     <td colSpan={4}>
                         <table>
                             <th></th>
-                            <th>Facturar a</th>
+                            <th>{t("Bill to")}</th>
                             <tr>
                                 <td>
                                     {company?.name}<br/>
@@ -70,9 +67,10 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                                 </td>
 
                                 <td>
-                                    Tetraimpacts, S.A.<br/>
-                                    Km 13, Carretera Sur <br/>
-                                    El Crucero, Managua, Nicaragua, 16100
+                                    {companyToBill?.name}<br/>
+                                    {companyToBill?.address}<br/>
+                                    {companyToBill?.city}, {companyToBill?.country}, {companyToBill?.postalCode}<br/>
+                                    {companyToBill?.email}
                                 </td>
                             </tr>
                         </table>
@@ -92,10 +90,10 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                 {/*</tr>*/}
 
                 <tr className={styles.heading}>
-                    <td>Artículo & Descripción</td>
-                    <td>Cantidad</td>
-                    <td>Tarifa</td>
-                    <td>Total</td>
+                    <td>{t("Item & Description")}</td>
+                    <td>{t("Amount")}</td>
+                    <td>{t("Rate")}</td>
+                    <td>{t("Total")}</td>
                 </tr>
 
                 {items.map((item, index) => (
@@ -113,18 +111,18 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                     <td></td>
 
                     <td>
-                        Total: ${total}
+                        {t("Total")}: ${total}
                     </td>
                     
                 </tr>
-                {paid&&
+                {paid &&
                     (<>
                         <tr className={styles.item}>
                             <td></td>
                             <td></td>
                             <td></td>
                             <td>
-                                Pago: (-) ${total}
+                                {t("Payment")}: (-) ${total}
                             </td>
                         </tr>
                         <tr className={styles.total}>
@@ -132,7 +130,7 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                             <td></td>
                             <td></td>
                             <td>
-                                Saldo adeudado: ${0}
+                                {t("Balance due")}: ${0}
                             </td>
                         </tr>
                     </>)
