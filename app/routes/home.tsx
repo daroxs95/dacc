@@ -75,7 +75,9 @@ export default function Home() {
             company,
             showLogo,
             quantity,
-            rate
+            rate,
+            companyToBill,
+            language,
         }
         const rest = profiles.filter(p => p.id !== selectedProfile);
         localStorage.setItem("data", JSON.stringify(
