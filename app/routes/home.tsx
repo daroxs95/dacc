@@ -11,7 +11,34 @@ export function meta({}: Route.MetaArgs) {
     ];
 }
 
+type Data = {
+    profiles: Profile[];
+}
+
+type Profile = {
+    id: string;
+    invoiceNumber: string;
+    created: string;
+    due: string;
+    description: string;
+    quantity: number;
+    rate: number;
+    showLogo: boolean;
+    company: {
+        name: string;
+        address: string;
+        city: string;
+        country: string;
+        email: string;
+        postalCode: string;
+    };
+}
+
 export default function Home() {
+    const [profiles, setProfiles] = useState<Profile[]>([]);
+    const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
+    const [profileName, setProfileName] = useState("");
+
     const [invoiceNumber, setInvoiceNumber] = useState("");
     const [created, setCreated] = useState("");
     const [due, setDue] = useState("");
@@ -31,36 +58,121 @@ export default function Home() {
     const [paid, setPaid] = useState(false);
 
     const saveToLocalStorage = () => {
-        localStorage.setItem("data", JSON.stringify({
-            invoiceNumber, created, due, description,
+        const newProfile = {
+            id: profileName,
+            invoiceNumber,
+            created,
+            due,
+            description,
             company,
             showLogo,
             quantity,
             rate
-        }));
+        }
+        const rest = profiles.filter(p => p.id !== selectedProfile);
+        localStorage.setItem("data", JSON.stringify(
+            {
+                profiles: [...rest, newProfile]
+            }
+        ));
     }
 
     useEffect(() => {
-        //save and load from local storage
-        const data = localStorage.getItem("data");
-        if (data) {
-            const parsedData = JSON.parse(data);
-            setInvoiceNumber(parsedData.invoiceNumber);
-            setCreated(parsedData.created);
-            setDue(parsedData.due);
-            setDescription(parsedData.description);
-            setCompany(parsedData.company);
-            setShowLogo(parsedData.showLogo);
-            setQuantity(parsedData.quantity);
-            setRate(parsedData.rate);
+        try {
+            const data = localStorage.getItem("data");
+            if (!data) return;
+            const parsed: Data = JSON.parse(data);
+            if (!parsed || !parsed.profiles) return;
+            setProfiles(parsed.profiles);
+        } catch (e) {
+            console.error(e)
         }
     }, []);
+
+    useEffect(() => {
+        if (!profiles.length) return;
+        const selected = profiles.find(p => p.id === selectedProfile);
+        if (!selected) return;
+        setInvoiceNumber(selected.invoiceNumber);
+        setCreated(selected.created);
+        setDue(selected.due);
+        setDescription(selected.description);
+        setCompany(selected.company);
+        setShowLogo(selected.showLogo);
+        setQuantity(selected.quantity);
+        setRate(selected.rate);
+    }, [profiles, selectedProfile]);
 
     return (
         <>
             <Navbar/>
             <br/>
             <div className={`${styles.controls} w-100 m-auto noPrint vstack`}>
+                <details className="card p-0 no-shadow">
+                    <summary>
+                        <h4>Perfil</h4>
+                    </summary>
+
+                    <div className="hstack f-wrap p-def">
+                        <div className="f-column vstack f-grow">
+                            <label>Perfil</label>
+                            <select onChange={(e) => {
+                                setSelectedProfile(e.currentTarget.value);
+                                setProfileName(e.currentTarget.value);
+                            }}>
+                                <option value="nuevo">Nuevo</option>
+                                {profiles.map(p => (
+                                    <option key={p.id} value={p.id}>{p.id}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="f-column vstack f-grow">
+                            <label>Nombre</label>
+                            <input value={profileName} onChange={(e) => setProfileName(e.target.value)}/>
+                        </div>
+                        <div className="f-column vstack f-grow">
+                            <label>Idioma</label>
+                            <select onChange={(e) => {
+                            }}>
+                                <option value="es">Español</option>
+                                <option value="en"> English</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="hstack f-wrap p-def">
+                        <div className="f-column vstack">
+                            <button onClick={() => {
+                                const data = localStorage.getItem("data");
+                                if (!data) return;
+                                // copy to clipboard
+                                try {
+                                    navigator.clipboard.writeText(data);
+                                    alert("Data copied to clipboard");
+                                } catch (e) {
+                                    console.error(e);
+                                }
+                            }}>
+                                Copy data
+                            </button>
+                        </div>
+                        <div className="f-column vstack">
+                            <button onClick={() => {
+                                const data = prompt("Paste data here");
+                                if (!data) return;
+                                try {
+                                    localStorage.setItem("data", data);
+                                    window.location.reload();
+                                } catch (e) {
+                                    console.error(e);
+                                }
+                            }}>
+                                Paste data
+                            </button>
+                        </div>
+                    </div>
+                </details>
+
                 <details className="card p-0 no-shadow">
                     <summary>
                         <h4>Factura</h4>
