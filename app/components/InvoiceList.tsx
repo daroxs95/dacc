@@ -1,6 +1,7 @@
 import {useLang} from "~/hooks/useLang";
 import {useState} from "react";
 import type {InvoiceRecord} from "~/lib/database";
+import {invoiceAmount} from "~/lib/money";
 
 export function InvoiceList({invoices, ready, busy, onOpen, onCreate}: {
     invoices: InvoiceRecord[];
@@ -57,7 +58,7 @@ export function InvoiceList({invoices, ready, busy, onOpen, onCreate}: {
                                 <td>{profile.companyToBill.name || t("No client")}</td>
                                 <td>{profile.created || t("No date")}</td>
                                 <td>{profile.due || t("No date")}</td>
-                                <td className="numeric">{money(profile.quantity * profile.rate)}</td>
+                                <td className="numeric">{money(invoiceAmount(profile.quantity, profile.rate))}</td>
                                 <td><span className={`status-badge ${profile.paid ? "paid" : "pending"}`}>
                                     {profile.paid ? t("Paid") : t("Unpaid")}
                                 </span></td>

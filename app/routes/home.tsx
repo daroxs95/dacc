@@ -5,6 +5,9 @@ import {useSearchParams} from "react-router";
 import {InvoiceList} from "~/components/InvoiceList";
 import CompanyForm from "~/components/CompanyForm/CompanyForm";
 import {useLang, type Lang} from "~/hooks/useLang";
+import {useSiteTools} from "~/hooks/useSiteTools";
+import {createSiteTools, type ImportPreviews} from "~/lib/site-tools";
+import {OperationError, recordVersion} from "~/lib/record-version";
 import {errorKey, type MessageKey} from "~/lib/i18n";
 import {blankCompany, createProfileBackup, loadDatabase, MAX_BACKUP_BYTES, parseBackup, readDatabase, restoreProfileBackup, saveProfile, saveInvoice, selectProfile, type Profile, type InvoiceRecord, type Database} from "~/lib/database";
 
@@ -61,6 +64,17 @@ export default function Home() {
     const draft: InvoiceRecord = {id: invoiceId, profileId: selectedProfile ?? "", invoiceNumber, created, due, description,
         quantity, rate, paid, showLogo, language, company, companyToBill};
     const savedSignature = useRef(profileSignature(draft));
+    const savedInvoiceVersion = useRef<string | null>(null);
+    const savedProfile = useRef<Profile | null>(null);
+    const mutationLock = useRef(false);
+    const importPreviews = useRef<ImportPreviews>(new Map());
+    const profileForm = {name: profileName, company: profileCompany, language: profileLanguage, showLogo: profileShowLogo};
+    const baselineProfile = savedProfile.current;
+    const profileDirty = configOpen && recordVersion(profileForm) !== recordVersion(baselineProfile ? {
+        name: baselineProfile.name, company: baselineProfile.company, language: baselineProfile.language, showLogo: baselineProfile.showLogo,
+    } : {name: "", company: blankCompany(), language: "es", showLogo: true});
+    const workspace = useRef({ready, selectedProfile, invoiceId, draft, profileDirty, configOpen, editingProfileId});
+    workspace.current = {ready, selectedProfile, invoiceId, draft, profileDirty, configOpen, editingProfileId};
 
     const reportError = (error: unknown) => {
         setError(errorKey(error));
@@ -68,6 +82,7 @@ export default function Home() {
 
     const applyInvoice = (invoice: InvoiceRecord) => {
         savedSignature.current = profileSignature(invoice);
+        savedInvoiceVersion.current = invoice.id ? recordVersion(invoice) : null;
         setInvoiceId(invoice.id);
         setInvoiceNumber(invoice.invoiceNumber); setCreated(invoice.created); setDue(invoice.due);
         setDescription(invoice.description); setQuantity(invoice.quantity); setRate(invoice.rate);
@@ -92,6 +107,7 @@ export default function Home() {
         window.confirm(t("Unsaved invoice changes will be discarded. Continue?"));
 
     const openSettings = () => {
+        savedProfile.current = activeProfile ?? null;
         setEditingProfileId(activeProfile?.id ?? null);
         setProfileName(activeProfile?.name ?? "");
         setProfileCompany(activeProfile?.company ?? blankCompany());
@@ -108,19 +124,22 @@ export default function Home() {
         }
         if (!selectedProfile) throw new Error("Select or create a profile before saving an invoice.");
         const invoice = {...draft, id: invoiceId || crypto.randomUUID()};
-        await saveInvoice(invoice, selectedProfile);
+        await saveInvoice(invoice, selectedProfile, savedInvoiceVersion.current);
         savedSignature.current = profileSignature(invoice);
+        savedInvoiceVersion.current = recordVersion(invoice);
         setInvoiceId(invoice.id);
         setInvoices((await readDatabase()).invoices);
     };
 
     const perform = async (action: () => Promise<void>) => {
+        if (mutationLock.current) return;
+        mutationLock.current = true;
         setBusy(true);
         setError("");
         setMessage("");
         try { await action(); }
         catch (error) { reportError(error); }
-        finally { setBusy(false); }
+        finally { mutationLock.current = false; setBusy(false); }
     };
 
     useEffect(() => {
@@ -130,6 +149,52 @@ export default function Home() {
         }).catch(error => { if (active) reportError(error); });
         return () => { active = false; };
     }, []);
+
+    useSiteTools(ready, createSiteTools({
+        context: () => {
+            const current = workspace.current;
+            return {ready: current.ready, activeProfileId: current.selectedProfile, selectedInvoiceId: current.invoiceId || null,
+                invoiceDirty: profileSignature(current.draft) !== savedSignature.current,
+                profileDirty: current.profileDirty, editingProfileId: current.editingProfileId, busy: mutationLock.current};
+        },
+        mutate: async action => {
+            if (mutationLock.current) throw new OperationError("BUSY", "Another operation is in progress. Retry when it finishes.");
+            mutationLock.current = true;
+            const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            setBusy(true); setError(""); setMessage("");
+            try {
+                const result = await action();
+                // Refresh saved data without resetting another invoice or a human draft.
+                try {
+                    const data = await readDatabase();
+                    const current = workspace.current;
+                    setProfiles(data.profiles); setInvoices(data.invoices);
+                    if (current.invoiceId && profileSignature(current.draft) === savedSignature.current) {
+                        const updated = data.invoices.find(invoice => invoice.id === current.invoiceId);
+                        if (updated) applyInvoice(updated);
+                    } else if (!current.invoiceId && profileSignature(current.draft) === savedSignature.current) {
+                        const updated = data.profiles.find(profile => profile.id === current.selectedProfile);
+                        if (updated) resetInvoice(updated);
+                    }
+                    if (current.configOpen && !current.profileDirty && current.editingProfileId) {
+                        const updated = data.profiles.find(profile => profile.id === current.editingProfileId);
+                        if (updated) {
+                            savedProfile.current = updated;
+                            setProfileName(updated.name); setProfileCompany(updated.company);
+                            setProfileLanguage(updated.language); setProfileShowLogo(updated.showLogo);
+                        }
+                    }
+                    setMessage("Changes saved by the agent.");
+                } catch { setError("Changes were saved, but the view could not refresh. Reload DACC."); }
+                return result;
+            } finally {
+                mutationLock.current = false; setBusy(false);
+                requestAnimationFrame(() => {
+                    if (focused?.isConnected && document.activeElement === document.body) focused.focus({preventScroll: true});
+                });
+            }
+        },
+    }, importPreviews.current));
 
     return (
         <div className={styles.app}>
@@ -142,10 +207,10 @@ export default function Home() {
                         {activeProfile?.name ?? t("No profile")}
                     </span>
                     <div className="workspace-nav-actions">
-                        {!listView && <button className="secondary compact" onClick={() => setView(true)}>
+                        {!listView && <button disabled={busy} className="secondary compact" onClick={() => setView(true)}>
                             <span aria-hidden="true">←</span> {t("Back to invoices")}
                         </button>}
-                        <button className="secondary compact" aria-haspopup="dialog" onClick={openSettings}>
+                        <button disabled={busy} className="secondary compact" aria-haspopup="dialog" onClick={openSettings}>
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
                                 <path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="white"/><circle cx="15" cy="17" r="3" fill="white"/>
                             </svg>{t("Settings")}
@@ -293,6 +358,7 @@ export default function Home() {
                                     await selectProfile(id);
                                     setSelectedProfile(id);
                                     const profile = profiles.find(profile => profile.id === id);
+                                    savedProfile.current = profile ?? null;
                                     resetInvoice(profile);
                                     setEditingProfileId(profile?.id ?? null);
                                     setProfileName(profile?.name ?? "");
@@ -331,7 +397,8 @@ export default function Home() {
                         if (!editingProfileId && !confirmDiscard()) return;
                         const profile: Profile = {id: editingProfileId ?? crypto.randomUUID(), name: profileName.trim(),
                             company: profileCompany, language: profileLanguage, showLogo: profileShowLogo};
-                        await saveProfile(profile);
+                        await saveProfile(profile, savedProfile.current ? recordVersion(savedProfile.current) : null);
+                        savedProfile.current = profile;
                         const data = await readDatabase();
                         setProfiles(data.profiles);
                         if (!editingProfileId) {
@@ -342,6 +409,7 @@ export default function Home() {
                         setMessage("Profile saved.");
                     })}>{t("Save profile")}</button>
                     <button className="secondary" onClick={() => {
+                        savedProfile.current = null;
                         setEditingProfileId(null); setProfileName(""); setProfileCompany(blankCompany());
                         setProfileLanguage("es"); setProfileShowLogo(true);
                     }}>{t("New profile")}</button>

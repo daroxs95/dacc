@@ -1,3 +1,6 @@
+import {checkVersion, OperationError, recordVersion} from "./record-version";
+import {invoiceCents} from "./money";
+
 type LegacyInvoice = {
     id: string;
     invoiceNumber: string;
@@ -66,6 +69,13 @@ export type InvoiceRecord = LegacyInvoice & {profileId: string};
 export type Database = {profiles: Profile[]; invoices: InvoiceRecord[]; activeProfileId: string | null};
 export const MAX_BACKUP_BYTES = 10 * 1024 * 1024;
 export const blankCompany = (): Company => ({name: "", address: "", city: "", country: "", email: "", postalCode: ""});
+
+export function validateInvoiceAmount(invoice: Pick<InvoiceRecord, "quantity" | "rate">) {
+    const cents = invoiceCents(invoice.quantity, invoice.rate);
+    if (cents > BigInt(Number.MAX_SAFE_INTEGER) || cents < -BigInt(Number.MAX_SAFE_INTEGER)) {
+        throw new OperationError("VALIDATION_ERROR", "Invoice amount is too large.");
+    }
+}
 
 function validateProfile(value: unknown): Profile {
     const data = record(value);
@@ -256,29 +266,86 @@ export function selectProfile(id: string): Promise<void> {
     });
 }
 
-export function saveProfile(profile: Profile): Promise<void> {
+export function saveProfile(profile: Profile, expectedVersion?: string | null): Promise<void> {
     const validated = validateProfile(profile);
-    return transaction("readwrite", tx => {
-        tx.objectStore("businessProfiles").put(validated);
+    return changeRecords(data => {
+        const existing = data.profiles.find(item => item.id === profile.id);
+        checkVersion(existing, expectedVersion);
+        data.profiles = [...data.profiles.filter(item => item.id !== profile.id), validated];
     });
 }
 
-export function saveInvoice(invoice: InvoiceRecord, profileId: string): Promise<void> {
+export function saveInvoice(invoice: InvoiceRecord, profileId: string, expectedVersion?: string | null): Promise<void> {
     const validated = validateInvoice(invoice);
     if (!validated.invoiceNumber.trim()) return Promise.reject(new Error("Enter an invoice number."));
     if (validated.profileId !== profileId) return Promise.reject(new Error("Invoice does not belong to the selected profile."));
-    return transaction("readwrite", tx => {
-        const owner = tx.objectStore("businessProfiles").get(profileId);
-        owner.onsuccess = () => {
-            if (!owner.result) { tx.abort(); return; }
-            const store = tx.objectStore("invoices");
-            const existing = store.get(validated.id);
-            existing.onsuccess = () => {
-                if (existing.result && existing.result.profileId !== profileId) { tx.abort(); return; }
-                store.put(validated);
-            };
-        };
+    return changeRecords(data => {
+        if (!data.profiles.some(item => item.id === profileId)) throw new OperationError("NOT_FOUND", "Invalid profile.");
+        const existing = data.invoices.find(item => item.id === validated.id);
+        checkVersion(existing, expectedVersion);
+        if (existing && existing.profileId !== profileId) throw new Error("Invoice does not belong to the selected profile.");
+        data.invoices = [...data.invoices.filter(item => item.id !== validated.id), validated];
     });
+}
+
+type RequestReceipt = {payload: string; result: unknown; records: Array<{kind: "profile" | "invoice"; id: string; version: string}>};
+type MutationRequest = {id: string; payload: unknown};
+
+/** Read, compare, validate, and write in one transaction. The callback must be synchronous. */
+export async function changeRecords<T>(change: (data: Database) => T, request?: MutationRequest): Promise<T> {
+    let failure: unknown;
+    try {
+        return await transaction<T>("readwrite", (tx, result) => {
+            const profiles = tx.objectStore("businessProfiles").getAll();
+            const invoices = tx.objectStore("invoices").getAll();
+            const active = tx.objectStore("settings").get("activeProfileId");
+            const receipt = tx.objectStore("settings").get(`dacc:request:${request?.id ?? ""}`);
+            receipt.onsuccess = () => {
+                try {
+                    const data: Database = {profiles: profiles.result, invoices: invoices.result, activeProfileId: active.result ?? null};
+                    const old = receipt.result as RequestReceipt | undefined;
+                    if (request && old) {
+                        if (old.payload !== recordVersion(request.payload)) throw new OperationError("REQUEST_CONFLICT", "This request ID was already used for different content.");
+                        for (const entry of old.records) {
+                            const current = (entry.kind === "profile" ? data.profiles : data.invoices).find(item => item.id === entry.id);
+                            if (!current || recordVersion(current) !== entry.version) throw new OperationError("STALE_REQUEST", "The original result changed or was restored. Read it before sending a new request.");
+                        }
+                        result(old.result as T);
+                        return;
+                    }
+                    const beforeProfiles = new Map(data.profiles.map(item => [item.id, recordVersion(item)]));
+                    const beforeInvoices = new Map(data.invoices.map(item => [item.id, recordVersion(item)]));
+                    const beforeNumbers = new Map(data.invoices.map(item => [item.id, item.invoiceNumber]));
+                    const output = change(data);
+                    const validated = validateDatabase(data);
+                    const changed: RequestReceipt["records"] = [];
+                    for (const profile of validated.profiles) {
+                        if (beforeProfiles.get(profile.id) === recordVersion(profile)) continue;
+                        tx.objectStore("businessProfiles").put(profile);
+                        changed.push({kind: "profile", id: profile.id, version: recordVersion(profile)});
+                    }
+                    for (const invoice of validated.invoices) {
+                        if (beforeInvoices.get(invoice.id) === recordVersion(invoice)) continue;
+                        if (!invoice.invoiceNumber.trim()) throw new Error("Enter an invoice number.");
+                        validateInvoiceAmount(invoice);
+                        // Existing legacy duplicates stay readable/editable; creating or renaming
+                        // into a duplicate number is blocked for both UI and agent writes.
+                        if (beforeNumbers.get(invoice.id) !== invoice.invoiceNumber && validated.invoices.some(item =>
+                            item.id !== invoice.id && item.profileId === invoice.profileId && item.invoiceNumber.trim() === invoice.invoiceNumber.trim())) {
+                            throw new OperationError("DUPLICATE_INVOICE", "This invoice number already exists in the profile.");
+                        }
+                        tx.objectStore("invoices").put(invoice);
+                        changed.push({kind: "invoice", id: invoice.id, version: recordVersion(invoice)});
+                    }
+                    if (request) tx.objectStore("settings").put({payload: recordVersion(request.payload), result: output, records: changed}, `dacc:request:${request.id}`);
+                    result(output);
+                } catch (error) {
+                    failure = error instanceof OperationError ? error : new OperationError("VALIDATION_ERROR", error instanceof Error ? error.message : "Invalid data.");
+                    tx.abort();
+                }
+            };
+        });
+    } catch (error) { throw failure ?? error; }
 }
 
 export function restoreBackup(text: string): Promise<void> {

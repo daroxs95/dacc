@@ -34,6 +34,37 @@ IndexedDB and SQLite are different database formats. These JSON backups are port
 
 Browser storage belongs to the current browser profile and site address. Clearing site data removes the database, and private browsing may not retain it. Keep downloaded backups. Device transfer is manual, not synchronization. The app needs a static web host to load; offline reload support is not included.
 
+### Agent access through WebMCP
+
+DACC registers JavaScript site tools in its top-level page when `document.modelContext.registerTool` is available. No model API key, backend, MCP server, or embedded assistant is required. Unsupported browsers keep the normal interface. Tools register after the local database opens and unregister on unmount using an abort signal.
+
+To use them in a compatible ChatGPT/Codex desktop built-in browser, open DACC, inspect **Site tools** in the address bar, and ask the agent to work with your invoices. Availability depends on the app version, model, rollout and workspace policy; see [OpenAI's Site tools documentation](https://learn.chatgpt.com/docs/webmcp). This browser has its own storage: if your invoices live in another browser, transfer the profile using a backup first. Reads return saved records, not unsaved form content.
+
+| Tool | Purpose |
+| --- | --- |
+| `dacc_get_context` | Active profile, selected invoice, unsaved-change flags and limitations |
+| `dacc_list_profiles` | Company profiles, defaults and version tokens |
+| `dacc_search_invoices` | Profile-scoped search by number, client, description and paid flag; up to 100 results per page |
+| `dacc_get_invoice` | Full saved invoice and version token |
+| `dacc_summarize_invoices` | Counts and exact decimal totals across all matches, independent of pagination |
+| `dacc_create_profile`, `dacc_update_profile` | Create or patch company defaults without changing saved invoice snapshots |
+| `dacc_create_invoice`, `dacc_update_invoice` | Create or patch a saved invoice and refresh the visible interface |
+| `dacc_preview_import`, `dacc_apply_import` | Preview and atomically add up to 100 invoices without replacing existing data |
+
+For example: “List unpaid invoices in my active profile and calculate their total,” or “Read these source files and import the supported invoices into DACC.” The external agent handles files and other apps through its own authorized access. DACC accepts structured invoice records; it does not read files or external services itself.
+
+Tool inputs are validated at runtime and reject unknown fields. Invoice operations require an explicit profile ID. Updates require the version returned by a read and reject stale records in the same transaction as the write. Manual invoice/profile saves also check the version originally opened. A write to an invoice or profile with unsaved edits in the current tab returns `EDITOR_CONFLICT`; edits to other records preserve those drafts. Other tabs are not live-synchronized, but stale saves are rejected. Open a record again to refresh it.
+
+Creates require a caller-generated `requestId`; reuse it only for identical retries. Receipts are stored atomically in this browser's settings store and are not exported in backups. If the original record changed or was replaced by a restore, retrying the old request returns `STALE_REQUEST` instead of recreating it. New or renamed invoices cannot duplicate a number within their profile; existing duplicates from old backups remain readable and editable.
+
+Imports skip exact duplicates and report conflicting numbers, including conflicts within a batch. Any conflict blocks the entire batch. Previews are bound to the destination profile and its saved invoices, expire after 10 minutes or page closure, and retain at most 20 previews per tab. Applying a preview rechecks the destination atomically. Repeated application of the same retained preview does not duplicate records. This additive operation is separate from backup restore, which still replaces a profile's data. Tool input is limited to 1,000,000 JSON characters.
+
+The current model supports one line item, USD presentation, verbatim date strings and a paid/unpaid flag. It does not support taxes, discounts, foreign currencies, attachments, partial payments, or automatic overdue/date-range calculations. Unsupported source fields must be resolved by the person/agent, not silently dropped. Totals use decimal arithmetic over the existing numeric quantity and rate, rounding each invoice to cents with halves away from zero. Summaries add these rounded amounts; the preview and invoice list use the same calculation. Existing stored numbers and backup formats are unchanged.
+
+Results use `{ok: true, data}` or `{ok: false, error: {code, message}}`. Expected errors include `VALIDATION_ERROR`, `NOT_FOUND`, `STALE_VERSION`, `EDITOR_CONFLICT`, `BUSY`, `DUPLICATE_INVOICE`, `REQUEST_CONFLICT`, `STALE_REQUEST`, `PREVIEW_EXPIRED`, and `IMPORT_CONFLICT`. Records and tool output are untrusted content. The browser's normal site-tool permissions still apply. There are no delete, restore, print, or arbitrary-code tools.
+
+Implementation: `app/lib/site-tools.ts` defines schemas and handlers, `app/lib/webmcp.ts` handles registration, and `app/hooks/useSiteTools.ts` binds handlers to current React state. `app/lib/database.ts` provides atomic record mutations shared with manual saves. Test operations with `npm test`; verify actual discovery and invocation through a compatible browser's Site tools, not just direct JavaScript calls.
+
 ## Main features
 
 - Client management

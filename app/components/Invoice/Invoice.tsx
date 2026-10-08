@@ -1,6 +1,7 @@
 import styles from "./Invoice.module.css";
 import {useEffect, useRef, useState, type CSSProperties} from "react";
 import {type Lang, useLang} from "~/hooks/useLang";
+import {decimalAmount, invoiceAmount, invoiceCents} from "~/lib/money";
 
 type Item = {
     description: string;
@@ -41,9 +42,7 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
         return () => observer.disconnect();
     }, []);
 
-    const total = items.reduce((acc, curr) => {
-        return acc + curr.quantity * curr.rate
-    }, 0);
+    const total = Number(decimalAmount(items.reduce((acc, curr) => acc + invoiceCents(curr.quantity, curr.rate), 0n)));
 
     const {t, money, number} = useLang(language);
 
@@ -51,9 +50,11 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
         <div ref={frame} className={styles.previewFrame} style={{"--preview-scale": scale} as CSSProperties}>
         <div ref={sheet} className={styles.invoiceBox} lang={language}>
             <table cellPadding="0" cellSpacing="0">
+                <tbody>
                 <tr className={styles.top}>
                     <td colSpan={4}>
                         <table>
+                            <tbody>
                             <tr>
                                 <td className={styles.title}>
                                     {showLogo && <img
@@ -72,6 +73,7 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                                     {t("Due")}: {due}
                                 </td>
                             </tr>
+                            </tbody>
                         </table>
                     </td>
                 </tr>
@@ -79,8 +81,10 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                 <tr className={styles.information}>
                     <td colSpan={4}>
                         <table>
+                            <tbody><tr>
                             <th></th>
                             <th>{t("Bill to")}</th>
+                            </tr>
                             <tr>
                                 <td>
                                     {company?.name}<br/>
@@ -96,6 +100,7 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                                     {companyToBill?.email}
                                 </td>
                             </tr>
+                            </tbody>
                         </table>
                     </td>
                 </tr>
@@ -124,7 +129,7 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                         <td>{item.description}</td>
                         <td>{number(item.quantity)}</td>
                         <td>{money(item.rate)}</td>
-                        <td>{money(item.quantity * item.rate)}</td>
+                        <td>{money(invoiceAmount(item.quantity, item.rate))}</td>
                     </tr>
                 ))}
 
@@ -158,6 +163,7 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                         </tr>
                     </>)
                 }
+                </tbody>
             </table>
         </div>
         </div>
