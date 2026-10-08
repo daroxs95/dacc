@@ -2,6 +2,7 @@ import {useLang} from "~/hooks/useLang";
 import {useState} from "react";
 import type {InvoiceRecord} from "~/lib/database";
 import {invoiceAmount} from "~/lib/money";
+import {sortInvoices, type InvoiceSortColumn, type SortDirection} from "~/lib/invoice-sort";
 
 export function InvoiceList({invoices, ready, busy, onOpen, onCreate}: {
     invoices: InvoiceRecord[];
@@ -10,7 +11,10 @@ export function InvoiceList({invoices, ready, busy, onOpen, onCreate}: {
     onOpen: (profile: InvoiceRecord) => void;
     onCreate: () => void;
 }) {
-    const {t, money} = useLang();
+    const {t, money, language} = useLang();
+    const [sort, setSort] = useState<{column: InvoiceSortColumn; direction: SortDirection}>({
+        column: "invoiceNumber", direction: "descending",
+    });
     const [search, setSearch] = useState("");
     const [status, setStatus] = useState("all");
     const query = search.trim().toLocaleLowerCase();
@@ -19,6 +23,12 @@ export function InvoiceList({invoices, ready, busy, onOpen, onCreate}: {
             .some(value => value.toLocaleLowerCase().includes(query)) &&
         (status === "all" || profile.paid === (status === "paid"))
     );
+    const sorted = sortInvoices(filtered, sort.column, sort.direction, language);
+    const columns = [
+        {key: "invoiceNumber", label: "Invoice"}, {key: "client", label: "Client"},
+        {key: "created", label: "Created"}, {key: "due", label: "Due"},
+        {key: "total", label: "Total"}, {key: "paid", label: "Status"},
+    ] as const;
 
     return <section className="card surface list-surface" aria-label={t("Saved invoices")}>
         <div className="filter-bar">
@@ -46,13 +56,21 @@ export function InvoiceList({invoices, ready, busy, onOpen, onCreate}: {
                     <div className="table-scroll" tabIndex={0} role="region" aria-label={t("Invoice list")}>
                         <table className="data-table compact">
                             <thead><tr>
-                                <th scope="col">{t("Invoice")}</th><th scope="col">{t("Client")}</th>
-                                <th scope="col">{t("Created")}</th><th scope="col">{t("Due")}</th>
-                                <th scope="col" className="numeric">{t("Total")}</th>
-                                <th scope="col">{t("Status")}</th>
+                                {columns.map(({key, label}) => <th key={key} scope="col"
+                                    className={key === "total" ? "numeric" : undefined}
+                                    aria-sort={sort.column === key ? sort.direction : undefined}>
+                                    <button className="table-sort" onClick={() => setSort(current => ({
+                                        column: key,
+                                        direction: current.column === key && current.direction === "ascending"
+                                            ? "descending" : "ascending",
+                                    }))}>
+                                        {t(label)} <span aria-hidden="true">{sort.column === key
+                                            ? sort.direction === "ascending" ? "↑" : "↓" : "↕"}</span>
+                                    </button>
+                                </th>)}
                             </tr></thead>
-                            <tbody>{filtered.map(profile => <tr key={profile.id}>
-                                <td><button className="text-link" disabled={busy}
+                            <tbody>{sorted.map(profile => <tr key={profile.id}>
+                                <td><button className="text-link neutral" disabled={busy}
                                     aria-label={t("Open invoice {number}", {number: profile.invoiceNumber || profile.id})}
                                     onClick={() => onOpen(profile)}>{profile.invoiceNumber || t("No number")}</button></td>
                                 <td>{profile.companyToBill.name || t("No client")}</td>
