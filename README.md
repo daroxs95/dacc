@@ -10,43 +10,29 @@ A Spain-first freelancer finance/accounting app for tracking income, expenses, i
 - Prepare data for quarterly tax declarations
 - Keep records organised for audits and annual reporting
 
-## Tech stack
+## Current app
 
-### Frontend
-- Bun
-- Vite
-- React
-- TypeScript
-- Plain CSS
+The invoice editor runs entirely in the browser using React, TypeScript and React Router in SPA mode. IndexedDB stores saved invoice profiles locally; no API, account, or database server is required. The features and domain model below describe the longer-term accounting roadmap.
 
-### Backend
-- Bun
-- Elysia
-- TypeScript
-- Prisma
+### Profiles and invoices
 
-### Database
-- PostgreSQL
+The top navbar always shows the active profile. Its selection is saved locally. The root page lists only that profile's invoices; **Nueva factura** creates a new invoice for that profile, and **Abrir** edits an existing one. Changing profiles returns to the list and asks before discarding an unsaved invoice.
 
-### Tooling
-- Bun workspaces
-- Zod
-- Docker Compose
-- GitHub Actions
+Use **Perfiles y empresas** to create or rename a profile and save its company details, default language, and logo preference. Each invoice has a stable ID and belongs to exactly one profile. Saving another invoice does not overwrite earlier invoices. New invoices inherit the active profile's defaults; saved invoices retain their own company snapshot and recipient.
 
-## Monorepo layout
+Existing version 1 data migrates automatically: each former invoice/profile record becomes a named profile with its original invoice. The old IndexedDB store and localStorage value remain as recovery copies and are no longer updated.
 
-apps/
-web/
-api/
-packages/
-db/
-shared/
-validation/
-config/
-docs/
-scripts/
-docker/
+### Local database and device transfers
+
+1. Save your invoice with **Guardar factura** or **Guardar e imprimir**.
+2. Open **Configuración**, then click **Download database** to export all profiles, their invoices, and the active profile as a version 2 `dacc-backup-YYYY-MM-DD.json` file.
+3. Open DACC on another device, choose the file under **Import database**, and confirm **Replace database**.
+
+Restoring replaces all profiles and invoices on the destination, including when the backup is empty. Download a backup first if you need the destination's records. Unsaved editor and profile changes are not included. Imports are validated before a single atomic database transaction; malformed files, missing profile references, duplicate IDs, and unsupported versions leave the database unchanged. Version 1 DACC backups remain importable. Import size is limited to 10 MB.
+
+IndexedDB and SQLite are different database formats. These JSON backups are portable between DACC instances in browsers; they are not `.sqlite` files. Files contain unencrypted invoice and company data.
+
+Browser storage belongs to the current browser profile and site address. Clearing site data removes the database, and private browsing may not retain it. Keep downloaded backups. Device transfer is manual, not synchronization. The app needs a static web host to load; offline reload support is not included.
 
 ## Main features
 
@@ -83,36 +69,25 @@ These concepts are intentionally separate.
 ## Getting started
 
 ### Prerequisites
-- Bun
-- Docker
-- PostgreSQL (or Docker Compose)
 
-### Install
-bun install
+- Node.js 22+ and npm
+- The `decss` Git submodule (`git submodule update --init --recursive`)
 
-### Run database
-docker compose up -d postgres
+```sh
+npm ci
+npm run dev
+```
 
-### Run migrations
-bun run db:migrate
+### Checks and production build
 
-### Start API
-bun run dev:api
+```sh
+npm test
+npm run typecheck
+npm run build
+npm start
+```
 
-### Start web
-bun run dev:web
-
-## Scripts
-
-bun run dev:web
-bun run dev:api
-bun run dev
-bun run test
-bun run lint
-bun run typecheck
-bun run db:generate
-bun run db:migrate
-bun run db:studio
+`npm start` previews the static build locally. Deploy `build/client` to a static host for production. The Dockerfile builds the SPA and serves it with nginx on port 80.
 
 ## Initial scope
 
@@ -165,3 +140,11 @@ bun run db:studio
 ## Notes
 
 This app helps prepare accounting and tax data but does not replace professional tax advice.
+
+## Localization
+
+The interface supports English and Spanish. The language selector remembers the choice in this browser; on first use it follows the first supported browser language, falling back to English. Interface language is independent of the language saved with each invoice and each profile's invoice defaults.
+
+UI strings and interpolation templates live in `app/lib/i18n.ts`. Use `useLang()` for interface text and `useLang(invoice.language)` for document text. Keys are type checked; add an English key and its Spanish translation together. Store message keys for status/error state so existing notices translate when the language changes. Known database errors are translated at the UI boundary; unknown browser errors use a localized fallback.
+
+Money and quantities use `Intl.NumberFormat`. Amounts retain the app's existing USD currency. Dates and company/profile/invoice content remain as entered, avoiding reinterpretation of existing free-text dates. The language preference is browser-local and is not part of database backups.

@@ -1,16 +1,35 @@
-.invoiceBox {
-    max-width: 800px;
-    margin: auto;
-    padding: 30px;
-    border: 1px solid #eee;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
-    font-size: 16px;
-    line-height: 24px;
-    font-family: 'Helvetica Neue', 'Helvetica', Helvetica, Arial, sans-serif;
-    color: #555;
-    min-height: 700px;
+.previewFrame {
+    width: 100%;
+    aspect-ratio: 210 / 297;
+    position: relative;
+}
 
-    @media print {
+.invoiceBox {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 210mm;
+    height: 297mm;
+    box-sizing: border-box;
+    padding: 12mm;
+    background: #fff;
+    font-size: 12pt;
+    line-height: 18pt;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: #555;
+    overflow-wrap: anywhere;
+    overflow: auto;
+    transform: scale(var(--preview-scale, 1));
+    transform-origin: top left;
+}
+
+@media print {
+    .previewFrame { position: static; width: 210mm; aspect-ratio: auto; }
+    .invoiceBox {
+        position: static;
+        transform: none;
+        height: auto;
+        min-height: 297mm;
+        overflow: visible;
         box-shadow: none;
         border: none;
     }
@@ -75,20 +94,6 @@
 .invoiceBox table tr.total td:last-child {
     border-top: 2px solid #eee;
     font-weight: bold;
-}
-
-@media only screen and (max-width: 600px) {
-    .invoiceBox table tr.top table td {
-        width: 100%;
-        display: block;
-        text-align: center;
-    }
-
-    .invoiceBox table tr.information table td {
-        width: 100%;
-        display: block;
-        text-align: center;
-    }
 }
 
 /** RTL **/

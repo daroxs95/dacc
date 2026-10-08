@@ -18,17 +18,19 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'true'
-      - name: Use Node.js 18.x
+      - name: Use Node.js 22.x
         uses: actions/setup-node@v3
         with:
-          node-version: 18.x
+          node-version: 22.x
           cache: 'npm'
-      - run: npm i
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
       - run: npm run build
       - name: Deploy to techstackify.surge.sh
         uses: dswistowski/surge-sh-action@v1
         with:
           domain: 'dacc.surge.sh'
-          project: './dist'
+          project: './build/client'
           login: ${{ secrets.surge_login }}
           token: ${{ secrets.surge_token }}

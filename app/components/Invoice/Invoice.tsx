@@ -1,4 +1,5 @@
 import styles from "./Invoice.module.css";
+import {useEffect, useRef, useState, type CSSProperties} from "react";
 import {type Lang, useLang} from "~/hooks/useLang";
 
 type Item = {
@@ -20,14 +21,35 @@ interface InvoiceProps {
 }
 
 export function Invoice({created, due, invoiceNumber, items, showLogo, company, paid, companyToBill, language}: InvoiceProps) {
+    const frame = useRef<HTMLDivElement>(null);
+    const sheet = useRef<HTMLDivElement>(null);
+    const [scale, setScale] = useState(1);
+
+    useEffect(() => {
+        const container = frame.current;
+        const page = sheet.current;
+        if (!container || !page) return;
+        const resize = () => {
+            // Layout width is untransformed, so zoom and column resizing never
+            // change the document's 210 x 297 mm geometry or its line wrapping.
+            const width = parseFloat(getComputedStyle(page).width);
+            if (width > 0) setScale(container.clientWidth / width);
+        };
+        const observer = new ResizeObserver(resize);
+        observer.observe(container);
+        resize();
+        return () => observer.disconnect();
+    }, []);
+
     const total = items.reduce((acc, curr) => {
         return acc + curr.quantity * curr.rate
     }, 0);
 
-    const {t} = useLang(language);
+    const {t, money, number} = useLang(language);
 
     return (
-        <div className={`${styles.invoiceBox}`}>
+        <div ref={frame} className={styles.previewFrame} style={{"--preview-scale": scale} as CSSProperties}>
+        <div ref={sheet} className={styles.invoiceBox} lang={language}>
             <table cellPadding="0" cellSpacing="0">
                 <tr className={styles.top}>
                     <td colSpan={4}>
@@ -36,6 +58,7 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                                 <td className={styles.title}>
                                     {showLogo && <img
                                         src="/darologo.png"
+                                        alt={t("Company logo")}
                                         style={{
                                             width: "100%",
                                             maxWidth: "80px"
@@ -97,11 +120,11 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                 </tr>
 
                 {items.map((item, index) => (
-                    <tr className={styles.item}>
+                    <tr key={index} className={styles.item}>
                         <td>{item.description}</td>
-                        <td>{item.quantity}</td>
-                        <td>${item.rate}</td>
-                        <td>${item.quantity * item.rate}</td>
+                        <td>{number(item.quantity)}</td>
+                        <td>{money(item.rate)}</td>
+                        <td>{money(item.quantity * item.rate)}</td>
                     </tr>
                 ))}
 
@@ -111,7 +134,7 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                     <td></td>
 
                     <td>
-                        {t("Total")}: ${total}
+                        {t("Total")}: {money(total)}
                     </td>
                     
                 </tr>
@@ -122,7 +145,7 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                             <td></td>
                             <td></td>
                             <td>
-                                {t("Payment")}: (-) ${total}
+                                {t("Payment")}: {money(-total)}
                             </td>
                         </tr>
                         <tr className={styles.total}>
@@ -130,12 +153,13 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
                             <td></td>
                             <td></td>
                             <td>
-                                {t("Balance due")}: ${0}
+                                {t("Balance due")}: {money(0)}
                             </td>
                         </tr>
                     </>)
                 }
             </table>
+        </div>
         </div>
     )
 }

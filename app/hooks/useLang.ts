@@ -1,28 +1,19 @@
-const ES = {
-    "Payment Method": "Método de Pago",
-    "Bill to": "Facturar a",
-    "Invoice": "Factura",
-    "Created": "Creado",
-    "Due": "Vencimiento",
-    "Item & Description": "Artículo & Descripción",
-    "Amount": "Cantidad",
-    "Rate": "Tarifa",
-    "Total": "Total",
-    "Balance due": "Saldo adeudado",
-    "Payment": "Pago",
-}
+import {createContext, useContext} from "react";
+import {formatMoney, translate, type Lang, type MessageKey} from "~/lib/i18n";
 
-export type Lang = "es" | "en";
+export type {Lang} from "~/lib/i18n";
+export const LanguageContext = createContext<{language: Lang; setLanguage: (language: Lang) => void}>({
+    language: "en", setLanguage: () => {},
+});
 
-export function useLang(lang: Lang) {
-    function t(key: keyof typeof ES) {
-        if (lang === "es" && key in ES) {
-            return ES[key];
-        }
-        return key;
-    }
-
+export function useLang(override?: Lang) {
+    const context = useContext(LanguageContext);
+    const language = override ?? context.language;
     return {
-        t
-    }
+        language,
+        setLanguage: context.setLanguage,
+        t: (key: MessageKey, values?: Record<string, string | number>) => translate(language, key, values),
+        money: (value: number) => formatMoney(language, value),
+        number: (value: number) => new Intl.NumberFormat(language).format(value),
+    };
 }
