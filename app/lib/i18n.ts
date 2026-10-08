@@ -1,4 +1,13 @@
 export const messages = {
+  "The active profile and its saved invoices in one file.": "El perfil activo y sus facturas guardadas en un archivo.",
+  "Restore a backup into a profile you choose.": "Restaura una copia en el perfil que elijas.",
+  "Backup downloaded. Restore it into any profile.": "Copia descargada. Restáurala en cualquier perfil.",
+  "Backup restored into the destination profile.": "Copia restaurada en el perfil de destino.",
+  "Replace profile data": "Reemplazar datos del perfil",
+  "Profile from backup": "Perfil de la copia",
+  "Destination profile": "Perfil de destino",
+  "The backup has no profile to restore.": "La copia no contiene ningún perfil para restaurar.",
+  "Restore {invoices} invoices into {profile}? This replaces its invoices and company defaults, keeps its name, and discards unsaved edits. Other profiles are unchanged.": "¿Restaurar {invoices} facturas en {profile}? Se reemplazan sus facturas y valores de empresa, se conserva su nombre y se descartan los cambios sin guardar. Los demás perfiles no cambian.",
   "Enter an invoice number.": "Introduce un número de factura.",
   "Save a backup before clearing browser data.": "Guarda una copia antes de borrar los datos del navegador.",
   "Backups": "Copias de seguridad",

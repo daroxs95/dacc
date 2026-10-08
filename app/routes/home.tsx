@@ -6,7 +6,7 @@ import {InvoiceList} from "~/components/InvoiceList";
 import CompanyForm from "~/components/CompanyForm/CompanyForm";
 import {useLang, type Lang} from "~/hooks/useLang";
 import {errorKey, type MessageKey} from "~/lib/i18n";
-import {blankCompany, createBackup, loadDatabase, MAX_BACKUP_BYTES, parseBackup, readDatabase, restoreBackup, saveProfile, saveInvoice, selectProfile, type Profile, type InvoiceRecord, type Database} from "~/lib/database";
+import {blankCompany, createProfileBackup, loadDatabase, MAX_BACKUP_BYTES, parseBackup, readDatabase, restoreProfileBackup, saveProfile, saveInvoice, selectProfile, type Profile, type InvoiceRecord, type Database} from "~/lib/database";
 
 function profileSignature(profile: InvoiceRecord) {
     return JSON.stringify([profile.profileId, profile.id, profile.invoiceNumber, profile.created, profile.due,
@@ -31,7 +31,7 @@ export default function Home() {
     const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState<MessageKey | "">("");
     const [error, setError] = useState<MessageKey | "">("");
-    const [pendingBackup, setPendingBackup] = useState<{text: string; count: number; invoiceCount: number} | null>(null);
+    const [pendingBackup, setPendingBackup] = useState<{text: string; data: Database; sourceId: string; targetId: string} | null>(null);
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
     const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
@@ -352,9 +352,9 @@ export default function Home() {
                     <h3 id="backup-title">{t("Backups")}</h3>
                     <p className="settings-description">{t("Your data is stored in this browser.")}</p>
                     <div className="settings-action">
-                        <div><h4>{t("Download backup")}</h4><p className="settings-description">{t("All your profiles and invoices in one file.")}</p></div>
-                        <button className="secondary compact" disabled={!ready || busy} onClick={() => void perform(async () => {
-                            const blob = new Blob([createBackup(await readDatabase())], {type: "application/json"});
+                        <div><h4>{t("Download backup")}</h4><p className="settings-description">{t("The active profile and its saved invoices in one file.")}</p></div>
+                        <button className="secondary compact" disabled={!ready || busy || !activeProfile} onClick={() => void perform(async () => {
+                            const blob = new Blob([createProfileBackup(await readDatabase(), selectedProfile!)], {type: "application/json"});
                             const url = URL.createObjectURL(blob);
                             const link = document.createElement("a");
                             link.href = url;
@@ -363,12 +363,12 @@ export default function Home() {
                             link.click();
                             link.remove();
                             setTimeout(() => URL.revokeObjectURL(url), 1000);
-                            setMessage("Backup downloaded. Import it in DACC on your other device.");
+                            setMessage("Backup downloaded. Restore it into any profile.");
                         })}>{t("Download")}</button>
                     </div>
                     <div className="settings-action">
-                        <div><h4>{t("Restore backup")}</h4><p className="settings-description">{t("Import a DACC file from another device.")}</p></div>
-                        <button type="button" className="secondary compact" disabled={busy}
+                        <div><h4>{t("Restore backup")}</h4><p className="settings-description">{t("Restore a backup into a profile you choose.")}</p></div>
+                        <button type="button" className="secondary compact" disabled={!ready || busy || !activeProfile}
                             onClick={() => backupFileInput.current?.click()}>{t("Import")}</button>
                             <input ref={backupFileInput} hidden aria-label={t("Backup file")} type="file" accept=".json,application/json" disabled={busy}
                                 onChange={event => {
@@ -380,22 +380,33 @@ export default function Home() {
                                         if (file.size > MAX_BACKUP_BYTES) throw new Error("Backup is too large (maximum 10 MB).");
                                         const text = await file.text();
                                         const backup = parseBackup(text);
-                                        setPendingBackup({text, count: backup.profiles.length, invoiceCount: backup.invoices.length});
+                                        if (!backup.profiles.length) throw new Error("The backup has no profile to restore.");
+                                        setPendingBackup({text, data: backup, sourceId: backup.profiles[0].id, targetId: selectedProfile ?? ""});
                                     });
                                 }}/>
                     </div>
                     <p className="settings-note">{t("Save a backup before clearing browser data.")}</p>
                     {pendingBackup && <div className="vstack">
-                        <p>{t("Import {profiles} profiles and {invoices} invoices? This replaces all saved profiles and invoices in this browser and discards unsaved edits. Download your current database first if you need to keep it.", {profiles: pendingBackup.count, invoices: pendingBackup.invoiceCount})}</p>
+                        <label className="form-field">{t("Profile from backup")}
+                            <select disabled={busy} value={pendingBackup.sourceId} onChange={event => setPendingBackup({...pendingBackup, sourceId: event.target.value})}>
+                                {pendingBackup.data.profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
+                            </select>
+                        </label>
+                        <label className="form-field">{t("Destination profile")}
+                            <select disabled={busy} value={pendingBackup.targetId} onChange={event => setPendingBackup({...pendingBackup, targetId: event.target.value})}>
+                                {profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
+                            </select>
+                        </label>
+                        <p>{t("Restore {invoices} invoices into {profile}? This replaces its invoices and company defaults, keeps its name, and discards unsaved edits. Other profiles are unchanged.", {invoices: pendingBackup.data.invoices.filter(invoice => invoice.profileId === pendingBackup.sourceId).length, profile: profiles.find(profile => profile.id === pendingBackup.targetId)?.name ?? ""})}</p>
                         <div className="hstack f-wrap">
                             <button disabled={busy} onClick={() => void perform(async () => {
-                                await restoreBackup(pendingBackup.text);
+                                await restoreProfileBackup(pendingBackup.text, pendingBackup.sourceId, pendingBackup.targetId);
                                 setPendingBackup(null);
                                 applyDatabase(await readDatabase());
                                 setView(true);
                                 setReady(true);
-                                setMessage("Database imported. Select a profile to continue.");
-                            })}>{t("Replace database")}</button>
+                                setMessage("Backup restored into the destination profile.");
+                            })}>{t("Replace profile data")}</button>
                             <button disabled={busy} onClick={() => setPendingBackup(null)}>{t("Cancel")}</button>
                         </div>
                     </div>}

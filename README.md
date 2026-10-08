@@ -25,10 +25,10 @@ Existing version 1 data migrates automatically: each former invoice/profile reco
 ### Local database and device transfers
 
 1. Save your invoice with **Guardar factura** or **Guardar e imprimir**.
-2. Open **Configuración**, then click **Download database** to export all profiles, their invoices, and the active profile as a version 2 `dacc-backup-YYYY-MM-DD.json` file.
-3. Open DACC on another device, choose the file under **Import database**, and confirm **Replace database**.
+2. Open **Settings**, select the source profile, and click **Download backup** to export only that profile and its saved invoices as a version 2 JSON file.
+3. Create a destination profile if needed, then choose the file under **Restore backup**. Choose the destination and confirm **Replace profile data**. Older backups containing multiple profiles also let you choose the source profile.
 
-Restoring replaces all profiles and invoices on the destination, including when the backup is empty. Download a backup first if you need the destination's records. Unsaved editor and profile changes are not included. Imports are validated before a single atomic database transaction; malformed files, missing profile references, duplicate IDs, and unsupported versions leave the database unchanged. Version 1 DACC backups remain importable. Import size is limited to 10 MB.
+Restoring replaces only the destination's invoices and company defaults (including language and logo preference), preserving its name and ID. Other profiles remain unchanged. Imported invoices receive new IDs so a backup can safely be restored into another profile in the same browser or on another device. A profile with no invoices clears the destination's invoices. Download a backup first if you need the destination's records. Unsaved edits are not included. Imports are validated and applied atomically. Version 1 backups remain importable; backups containing no profiles cannot be restored into a profile. Import size is limited to 10 MB.
 
 IndexedDB and SQLite are different database formats. These JSON backups are portable between DACC instances in browsers; they are not `.sqlite` files. Files contain unencrypted invoice and company data.
 

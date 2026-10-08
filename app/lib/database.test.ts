@@ -1,7 +1,7 @@
 import {beforeEach, test} from "node:test";
 import assert from "node:assert/strict";
 import {IDBFactory} from "fake-indexeddb";
-import {createBackup, loadDatabase, parseBackup, readDatabase, readInvoices, restoreBackup,
+import {createProfileBackup, restoreProfileBackup, createBackup, loadDatabase, parseBackup, readDatabase, readInvoices, restoreBackup,
     saveProfile, saveInvoice, selectProfile, type Profile, type InvoiceRecord, type Database} from "./database";
 
 const company = {name: "Acme", address: "Street", city: "Paris", country: "France", email: "a@example.com", postalCode: "75001"};
@@ -142,4 +142,36 @@ test("broken localStorage is retained and recovery from a backup remains possibl
     const data = await seed();
     assert.deepEqual(await loadDatabase(), data);
     assert.equal(storage.get("data"), "broken");
+});
+
+
+test("profile backup restores into another profile without changing its source or selection", async () => {
+    await seed();
+    await saveInvoice({...invoice, id: "destination-old", profileId: second.id}, second.id);
+    const backup = createProfileBackup(await readDatabase(), profile.id);
+    assert.deepEqual(parseBackup(backup), {profiles: [profile], invoices: [invoice], activeProfileId: profile.id});
+    await restoreProfileBackup(backup, profile.id, second.id);
+    const data = await readDatabase();
+    assert.deepEqual(await readInvoices(profile.id), [invoice]);
+    assert.equal(data.activeProfileId, profile.id);
+    assert.deepEqual(data.profiles.find(item => item.id === second.id), {...profile, id: second.id, name: second.name});
+    const restored = await readInvoices(second.id);
+    assert.equal(restored.length, 1);
+    assert.notEqual(restored[0].id, invoice.id);
+    assert.notEqual(restored[0].id, "destination-old");
+    assert.deepEqual(restored[0], {...invoice, id: restored[0].id, profileId: second.id});
+    await restoreProfileBackup(backup, profile.id, second.id);
+    assert.equal((await readInvoices(second.id)).length, 1);
+});
+
+test("empty profile restore clears only its destination and invalid targets leave data intact", async () => {
+    await seed();
+    const backup = createProfileBackup(await readDatabase(), second.id);
+    const initial = await readDatabase();
+    await assert.rejects(restoreProfileBackup(backup, second.id, "missing"));
+    assert.throws(() => restoreProfileBackup(backup, "missing", profile.id));
+    assert.deepEqual(await readDatabase(), initial);
+    await restoreProfileBackup(backup, second.id, profile.id);
+    assert.deepEqual(await readInvoices(profile.id), []);
+    assert.equal((await readDatabase()).profiles.length, 2);
 });

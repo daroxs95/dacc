@@ -115,6 +115,40 @@ export function createBackup(data: Database): string {
     return JSON.stringify({format: "dacc", version: 2, exportedAt: new Date().toISOString(), ...validateDatabase(data)}, null, 2);
 }
 
+export function createProfileBackup(data: Database, profileId: string): string {
+    const profile = data.profiles.find(profile => profile.id === profileId);
+    if (!profile) throw new Error("Invalid profile.");
+    return createBackup({profiles: [profile], invoices: data.invoices.filter(invoice => invoice.profileId === profileId),
+        activeProfileId: profileId});
+}
+
+export function restoreProfileBackup(text: string, sourceId: string, targetId: string): Promise<void> {
+    const data = parseBackup(text);
+    const source = data.profiles.find(profile => profile.id === sourceId);
+    if (!source) throw new Error("Invalid profile.");
+    const invoices = data.invoices.filter(invoice => invoice.profileId === sourceId)
+        .map(invoice => ({...invoice, id: crypto.randomUUID(), profileId: targetId}));
+    return transaction("readwrite", tx => {
+        const profiles = tx.objectStore("businessProfiles");
+        const target = profiles.get(targetId);
+        target.onsuccess = () => {
+            if (!target.result) { tx.abort(); return; }
+            profiles.put({...source, id: targetId, name: target.result.name});
+            const store = tx.objectStore("invoices");
+            const cursor = store.index("profileId").openCursor(targetId);
+            cursor.onsuccess = () => {
+                if (cursor.result) {
+                    cursor.result.delete();
+                    cursor.result.continue();
+                } else {
+                    invoices.forEach(invoice => store.add(invoice));
+                }
+            };
+            tx.objectStore("settings").put(true, "migrated");
+        };
+    });
+}
+
 function openDatabase(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
         if (!globalThis.indexedDB) return reject(new Error("Browser database is unavailable. Enable browser storage and reload."));
