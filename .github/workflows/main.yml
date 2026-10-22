@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  surge-deploy:
-    name: Deploy to surge.sh
+  checks:
+    name: Validate app
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -27,10 +27,3 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
-      - name: Deploy to techstackify.surge.sh
-        uses: dswistowski/surge-sh-action@v1
-        with:
-          domain: 'dacc.surge.sh'
-          project: './build/client'
-          login: ${{ secrets.surge_login }}
-          token: ${{ secrets.surge_token }}

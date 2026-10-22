@@ -1,0 +1,8 @@
+{
+  "name": "dacc-cloudflare-tooling",
+  "private": true,
+  "description": "Isolated deployment CLI for the static DACC app",
+  "devDependencies": {
+    "wrangler": "4.151.3"
+  }
+}
