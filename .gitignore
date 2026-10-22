@@ -1,7 +1,14 @@
 .DS_Store
 /node_modules/
+/tools/cloudflare/node_modules/
 
 # React Router
 /.react-router/
 /build/
 .idea
+
+# Cloudflare local state and secrets
+/.wrangler/
+/.dev.vars*
+/.env*
+/.vercel/

@@ -22,6 +22,12 @@ Use **Perfiles y empresas** to create or rename a profile and save its company d
 
 Existing version 1 data migrates automatically: each former invoice/profile record becomes a named profile with its original invoice. The old IndexedDB store and localStorage value remain as recovery copies and are no longer updated.
 
+The original localStorage format containing one invoice also migrates into an
+unnamed profile. Early records without invoice language or recipient details
+use Spanish and a blank recipient, matching the fields those releases supported.
+Invalid existing fields stop migration without partially copying records or
+removing the original recovery value.
+
 ### Local database and device transfers
 
 1. Save your invoice with **Guardar factura** or **Guardar e imprimir**.
@@ -119,6 +125,40 @@ npm start
 ```
 
 `npm start` previews the static build locally. Deploy `build/client` to a static host for production. The Dockerfile builds the SPA and serves it with nginx on port 80.
+
+### Cloudflare deployment
+
+The app deploys to Cloudflare Workers Static Assets. The intended production
+address is `https://dacc.darodev.site`; attach it as a custom domain only after
+the `workers.dev` candidate has been verified and local data has been transferred.
+`wrangler.jsonc` serves `build/client` with SPA fallback; no Worker script, server
+database, runtime environment variables, or secrets are needed.
+
+```sh
+npm ci
+npm run setup:cloudflare
+npm test
+npm run typecheck
+npm run deploy:dry-run
+npm run deploy
+```
+
+Deployment uses the locally pinned Wrangler version and an authenticated Cloudflare
+account with access to the `darodev.site` zone. `npm run preview:cloudflare` builds
+and previews the same assets locally before deployment.
+
+The CLI has its own lockfile under `tools/cloudflare` because the existing React
+Router development package declares an older optional Wrangler peer dependency.
+This keeps deployment tooling separate without changing the application runtime.
+
+Changing the site address creates a new browser storage origin. Before retiring
+the old host, save pending invoice edits, open **Settings**, select each profile,
+and download its backup separately. At the new address, create a destination
+profile for each backup, choose **Import**, and confirm **Replace profile data**
+for the correct destination. Check saved invoice counts, amounts, paid status,
+company details, and print preview before retiring the old host. Keep the backup
+files. The interface language preference must be selected again at the new address.
+Repeat the transfer in each browser or device that contains different local data.
 
 ## Initial scope
 

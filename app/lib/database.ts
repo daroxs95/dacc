@@ -46,14 +46,15 @@ function legacyInvoices(value: unknown, legacy = false): LegacyInvoice[] {
             typeof data.rate !== "number" || !Number.isFinite(data.rate) ||
             typeof data.showLogo !== "boolean" ||
             !(typeof data.paid === "boolean" || (legacy && data.paid === undefined)) ||
-            (data.language !== "es" && data.language !== "en")) {
+            !(data.language === "es" || data.language === "en" || (legacy && data.language === undefined))) {
             throw new Error("Invalid invoice values in database backup.");
         }
         return {
             id, invoiceNumber: string(data.invoiceNumber), created: string(data.created),
             due: string(data.due), description: string(data.description), quantity: data.quantity,
             rate: data.rate, showLogo: data.showLogo, paid: data.paid === true,
-            language: data.language, company: company(data.company), companyToBill: company(data.companyToBill),
+            language: data.language === "en" ? "en" : "es", company: company(data.company),
+            companyToBill: legacy && data.companyToBill === undefined ? blankCompany() : company(data.companyToBill),
         };
     });
 }
@@ -97,6 +98,15 @@ function fromLegacy(value: unknown): Database {
         company: invoice.company, language: invoice.language, showLogo: invoice.showLogo}));
     const invoices = old.map(invoice => ({...invoice, id: `legacy:${invoice.id}`, profileId: `legacy:${invoice.id}`}));
     return {profiles, invoices, activeProfileId: profiles[0]?.id ?? null};
+}
+
+function fromLocalStorage(text: string): Database {
+    const data = record(JSON.parse(text));
+    if ("profiles" in data) return fromLegacy(data.profiles);
+    // Before profiles were introduced, the app saved one invoice directly.
+    // Validate its original fields and retain the localStorage recovery copy.
+    if ("invoiceNumber" in data && "company" in data) return fromLegacy([{...data, id: ""}]);
+    throw new Error("The backup must contain profiles.");
 }
 
 function validateDatabase(value: unknown): Database {
@@ -217,7 +227,7 @@ export async function loadDatabase(): Promise<Database> {
     });
     if (!migrated) {
         const legacy = localStorage.getItem("data");
-        const data = legacy ? fromLegacy(record(JSON.parse(legacy)).profiles) : {
+        const data = legacy ? fromLocalStorage(legacy) : {
             profiles: [{id: "default", name: "Mi perfil", company: blankCompany(), language: "es" as const, showLogo: true}],
             invoices: [], activeProfileId: "default",
         };

@@ -1,0 +1,19 @@
+{
+  "$schema": "tools/cloudflare/node_modules/wrangler/config-schema.json",
+  "name": "dacc",
+  "account_id": "3b3aaff96cd9b76205198a4030053313",
+  "compatibility_date": "2026-10-22",
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "dacc.darodev.site", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": "./build/client",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.01 }
+  }
+}

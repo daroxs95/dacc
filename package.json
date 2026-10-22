@@ -7,7 +7,12 @@
     "dev": "react-router dev",
     "start": "vite preview --host 0.0.0.0",
     "test": "tsx --test app/lib/*.test.ts",
-    "typecheck": "react-router typegen && tsc"
+    "typecheck": "react-router typegen && tsc",
+    "setup:cloudflare": "npm --prefix tools/cloudflare ci",
+    "cloudflare": "node ./tools/cloudflare/node_modules/wrangler/bin/wrangler.js",
+    "deploy": "npm run build && npm run cloudflare -- deploy",
+    "deploy:dry-run": "npm run build && npm run cloudflare -- deploy --dry-run",
+    "preview:cloudflare": "npm run build && npm run cloudflare -- dev"
   },
   "dependencies": {
     "@react-router/node": "^7.1.5",

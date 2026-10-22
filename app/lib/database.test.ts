@@ -52,6 +52,42 @@ test("localStorage migration separates profile and invoice once without losing f
     assert.ok(storage.has("data"));
 });
 
+test("the original single-invoice localStorage format migrates without losing its recovery copy", async () => {
+    const old = {invoiceNumber: "2025-001", created: "January 1", due: "January 31", description: "Original work",
+        quantity: 2.5, rate: 99.95, showLogo: true, company};
+    const original = JSON.stringify(old);
+    storage.set("data", original);
+    const data = await loadDatabase();
+    assert.deepEqual(data.profiles, [{id: "legacy:", name: "Sin nombre", company, language: "es", showLogo: true}]);
+    assert.deepEqual(data.invoices, [{...old, id: "legacy:", profileId: "legacy:", paid: false,
+        language: "es", companyToBill: {name: "", address: "", city: "", country: "", email: "", postalCode: ""}}]);
+    assert.equal(data.activeProfileId, "legacy:");
+    assert.equal(storage.get("data"), original);
+    assert.deepEqual(await loadDatabase(), data);
+    assert.deepEqual(parseBackup(createProfileBackup(data, "legacy:")), data);
+});
+
+test("early profile records migrate before language and recipient fields existed", async () => {
+    const old = {id: "Early profile", invoiceNumber: "001", created: "2025-01-01", due: "2025-01-31",
+        description: "Work", quantity: 2, rate: 100, showLogo: false, company};
+    storage.set("data", JSON.stringify({profiles: [old]}));
+    const data = await loadDatabase();
+    assert.equal(data.profiles[0].name, old.id);
+    assert.deepEqual(data.invoices[0], {...old, id: "legacy:Early profile", profileId: "legacy:Early profile",
+        paid: false, language: "es", companyToBill: {name: "", address: "", city: "", country: "", email: "", postalCode: ""}});
+});
+
+test("legacy migration rejects invalid existing fields atomically and retains the source", async () => {
+    for (const patch of [{language: "invalid"}, {companyToBill: null}, {paid: "yes"}, {quantity: null}]) {
+        globalThis.indexedDB = new IDBFactory();
+        const source = JSON.stringify({profiles: [legacy, {...legacy, id: "Invalid", ...patch}]});
+        storage.set("data", source);
+        await assert.rejects(loadDatabase());
+        assert.deepEqual(await readDatabase(), {profiles: [], invoices: [], activeProfileId: null});
+        assert.equal(storage.get("data"), source);
+    }
+});
+
 test("existing IndexedDB v1 upgrades atomically and retains the recovery store", async () => {
     await new Promise<void>((resolve, reject) => {
         const request = indexedDB.open("dacc", 1);
