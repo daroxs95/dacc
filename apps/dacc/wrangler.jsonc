@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dacc",
+  "main": "server/worker.ts",
+  "compatibility_date": "2025-11-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "build/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/auth/*", "/mcp"]
+  },
+  "vars": {"APP_URL": "http://localhost:8787", "GOOGLE_CLIENT_ID": ""},
+  "d1_databases": [{"binding": "DB", "database_name": "dacc", "database_id": "REPLACE_WITH_D1_DATABASE_ID", "migrations_dir": "migrations"}]
+}

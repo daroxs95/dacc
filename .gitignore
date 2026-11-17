@@ -4,4 +4,11 @@
 # React Router
 /.react-router/
 /build/
+/apps/dacc/node_modules/
+/apps/dacc/.react-router/
+/apps/dacc/build/
 .idea
+**/.env
+**/.dev.vars
+**/.wrangler/
+/apps/dacc/data/

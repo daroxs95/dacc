@@ -11,9 +11,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  surge-deploy:
-    name: Deploy to surge.sh
+  checks:
+    name: Check DACC
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/dacc
     steps:
       - uses: actions/checkout@v3
         with:
@@ -23,14 +26,8 @@ jobs:
         with:
           node-version: 22.x
           cache: 'npm'
+          cache-dependency-path: apps/dacc/package-lock.json
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
-      - name: Deploy to techstackify.surge.sh
-        uses: dswistowski/surge-sh-action@v1
-        with:
-          domain: 'dacc.surge.sh'
-          project: './build/client'
-          login: ${{ secrets.surge_login }}
-          token: ${{ secrets.surge_token }}

@@ -1,4 +1,5 @@
-import {changeRecords, readDatabase, validateInvoiceAmount, type Database, type InvoiceRecord, type Profile} from "./database";
+import {validateInvoiceAmount, type Database, type InvoiceRecord, type Profile} from "./data-model";
+import type {DataStore} from "./data-store";
 import {checkVersion, OperationError, recordVersion} from "./record-version";
 import {decimalAmount, invoiceCents} from "./money";
 import type {SiteTool} from "./webmcp";
@@ -105,7 +106,8 @@ function comparableInvoice(invoice: InvoiceRecord) {
     return recordVersion(content);
 }
 
-export function createSiteTools(bridge: WorkspaceBridge, previews: ImportPreviews = new Map()): SiteTool[] {
+export function createSiteTools(bridge: WorkspaceBridge, previews: ImportPreviews = new Map(), store: DataStore): SiteTool[] {
+    const {readDatabase, changeRecords} = store;
     const tools: SiteTool[] = [];
     function add<T>(name: string, description: string, schema: Schema, readOnly: boolean, run: (args: T) => Promise<unknown>) {
         tools.push({name: `dacc_${name}`, description, inputSchema: schema as unknown as Record<string, unknown>,
@@ -125,7 +127,7 @@ export function createSiteTools(bridge: WorkspaceBridge, previews: ImportPreview
     }
     add("get_context", "Read current DACC workspace state, unsaved-change flags and data limitations. Saved-record queries do not include unsaved drafts.", object({}), true,
         async () => ({...bridge.context(), capabilitiesVersion: 1, currency: "USD", limitations: [
-            "Storage belongs to this browser and site address; it is not synchronized with other browsers.",
+            "Saved records belong to the authenticated DACC account. Unsaved browser drafts are unavailable.",
             "One line item per invoice. Taxes, discounts, multiple currencies, attachments and partial payments are not supported.",
             "Dates are free text; no automatic date interpretation or overdue calculation.",
             "Totals round each invoice to cents, halves away from zero. Paid status is a boolean, not a payment ledger.",
@@ -191,7 +193,7 @@ export function createSiteTools(bridge: WorkspaceBridge, previews: ImportPreview
             return invoiceResult(invoice);
         }));
     add<{profileId: string; invoices: InvoiceInput[]}>("preview_import",
-        "Preview an additive import of up to 100 structured single-line USD invoices. Exact duplicates are skipped; conflicting invoice numbers block the batch. Does not save invoices. The returned previewId expires after 10 minutes or when this page closes. Unsupported fields are rejected, not silently discarded.",
+        "Preview an additive import of up to 100 structured single-line USD invoices. Exact duplicates are skipped; conflicting invoice numbers block the batch. Does not save invoices. The returned previewId expires after 10 minutes and is scoped to this account. Unsupported fields are rejected, not silently discarded.",
         object({profileId: id, invoices: {type: "array", items: invoiceInput, minItems: 1, maxItems: 100}}, ["profileId", "invoices"]), true,
         async args => {
             const data = await readDatabase();
