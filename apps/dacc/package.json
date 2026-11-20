@@ -7,27 +7,33 @@
     "dev": "react-router dev",
     "start": "tsx --env-file-if-exists=.env server/node.ts",
     "test": "node --experimental-sqlite --import tsx --test app/lib/*.test.ts server/*.test.ts",
-    "typecheck": "react-router typegen && tsc",
+    "test:oauth": "npm run build && node scripts/test-oauth.mjs",
+    "typecheck": "npm run types:cloudflare && react-router typegen && tsc",
+    "types:cloudflare": "npm run wrangler -- types worker-configuration.d.ts --strict-vars false",
     "dev:server": "tsx watch --env-file-if-exists=.env server/node.ts",
-    "dev:cloudflare": "npm run build && wrangler dev",
-    "db:migrate:cloudflare": "wrangler d1 migrations apply dacc --remote",
-    "deploy:cloudflare": "npm run build && wrangler deploy"
+    "dev:cloudflare": "npm run build && npm run wrangler -- dev --local-protocol https --local-upstream localhost:8787 --upstream-protocol https",
+    "db:migrate:cloudflare": "npm run wrangler -- d1 migrations apply dacc --remote",
+    "deploy:cloudflare": "npm run build && npm run wrangler -- deploy",
+    "wrangler": "node ../../tools/cloudflare/node_modules/wrangler/bin/wrangler.js"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.2.4",
+    "@hono/node-server": "^1.19.0",
+    "@modelcontextprotocol/sdk": "^1.25.0",
     "@react-router/node": "^7.1.5",
     "@react-router/serve": "^7.1.5",
+    "arctic": "^3.7.0",
+    "better-sqlite3": "^11.10.0",
+    "hono": "^4.10.0",
     "isbot": "^5.1.17",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router": "^7.1.5",
-    "hono": "^4.10.0",
-    "@hono/node-server": "^1.19.0",
-    "@modelcontextprotocol/sdk": "^1.25.0",
-    "arctic": "^3.7.0",
-    "better-sqlite3": "^11.10.0"
+    "react-router": "^7.1.5"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251117.0",
     "@react-router/dev": "^7.1.5",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.1",
@@ -36,9 +42,6 @@
     "tsx": "^4.23.15",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",
-    "vite-tsconfig-paths": "^5.1.4",
-    "@types/better-sqlite3": "^7.6.13",
-    "@cloudflare/workers-types": "^4.20251117.0",
-    "wrangler": "^4.45.0"
+    "vite-tsconfig-paths": "^5.1.4"
   }
 }

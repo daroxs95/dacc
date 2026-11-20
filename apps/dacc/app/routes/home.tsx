@@ -1,7 +1,11 @@
 import {Invoice} from "~/components/Invoice/Invoice";
 import styles from "./home.module.css";
 import {useEffect, useRef, useState} from "react";
-import {useSearchParams} from "react-router";
+import {Link, useSearchParams} from "react-router";
+import {ProfileActions} from "~/components/ProfileActions";
+import {AccountActions} from "~/components/Account";
+import {Expenses} from "~/components/Expenses";
+import {RecordSources} from "~/components/RecordSources";
 import {InvoiceList} from "~/components/InvoiceList";
 import CompanyForm from "~/components/CompanyForm/CompanyForm";
 import {useLang, type Lang} from "~/hooks/useLang";
@@ -9,17 +13,19 @@ import {useSiteTools} from "~/hooks/useSiteTools";
 import {createRemoteTools} from "~/lib/remote-tools";
 import {OperationError, recordVersion} from "~/lib/record-version";
 import {errorKey, type MessageKey} from "~/lib/i18n";
-import {blankCompany, createProfileBackup, loadDatabase, MAX_BACKUP_BYTES, parseBackup, readDatabase, restoreProfileBackup, saveProfile, saveInvoice, selectProfile, type Profile, type InvoiceRecord, type Database} from "~/lib/database";
+import {blankCompany, createProfileBackup, loadDatabase, MAX_BACKUP_BYTES, parseBackup, readDatabase, restoreProfileBackup, saveProfile, saveInvoice, selectProfile, type Profile, type InvoiceRecord, type Database, type Currency, type ExpenseRecord, type RecordEvidence} from "~/lib/database";
 
 function profileSignature(profile: InvoiceRecord) {
     return JSON.stringify([profile.profileId, profile.id, profile.invoiceNumber, profile.created, profile.due,
         profile.description, profile.quantity, profile.rate, profile.paid, profile.showLogo,
-        profile.language, profile.company, profile.companyToBill]);
+        profile.language, profile.company, profile.companyToBill, profile.currency ?? "USD", profile.paymentStatus, profile.notes, profile.sourceDocuments, profile.taxReporting]);
 }
 
 export default function Home() {
     const {t, language: interfaceLanguage, setLanguage: setInterfaceLanguage} = useLang();
     const [searchParams, setSearchParams] = useSearchParams();
+    const expensesView = searchParams.get("view") === "expenses";
+    const [expenseDirty, setExpenseDirty] = useState(false);
     const listView = searchParams.get("view") !== "editor";
     const setView = (list: boolean) => setSearchParams(previous => {
         const next = new URLSearchParams(previous);
@@ -37,8 +43,12 @@ export default function Home() {
     const [pendingBackup, setPendingBackup] = useState<{text: string; data: Database; sourceId: string; targetId: string} | null>(null);
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
+    const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+    const [currency, setCurrency] = useState<Currency>("USD");
+    const [invoiceEvidence, setInvoiceEvidence] = useState<RecordEvidence & {paymentStatus?: "unknown" | "confirmed"}>({});
     const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
     const [invoiceId, setInvoiceId] = useState("");
+    const [editingInvoice, setEditingInvoice] = useState(false);
     const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
     const [profileName, setProfileName] = useState("");
     const [profileCompany, setProfileCompany] = useState<Company>(blankCompany);
@@ -62,9 +72,12 @@ export default function Home() {
 
     const [paid, setPaid] = useState(false);
     const draft: InvoiceRecord = {id: invoiceId, profileId: selectedProfile ?? "", invoiceNumber, created, due, description,
-        quantity, rate, paid, showLogo, language, company, companyToBill};
+        quantity, rate, paid, showLogo, language, company, companyToBill, currency, ...invoiceEvidence};
     const savedSignature = useRef(profileSignature(draft));
     const savedInvoiceVersion = useRef<string | null>(null);
+    const invoiceDirty = profileSignature(draft) !== savedSignature.current;
+    const invoiceReadOnly = !!invoiceId && !editingInvoice;
+    const invoiceControlsDisabled = !ready || busy || !activeProfile;
     const savedProfile = useRef<Profile | null>(null);
     const mutationLock = useRef(false);
 
@@ -73,8 +86,8 @@ export default function Home() {
     const profileDirty = configOpen && recordVersion(profileForm) !== recordVersion(baselineProfile ? {
         name: baselineProfile.name, company: baselineProfile.company, language: baselineProfile.language, showLogo: baselineProfile.showLogo,
     } : {name: "", company: blankCompany(), language: "es", showLogo: true});
-    const workspace = useRef({ready, selectedProfile, invoiceId, draft, profileDirty, configOpen, editingProfileId});
-    workspace.current = {ready, selectedProfile, invoiceId, draft, profileDirty, configOpen, editingProfileId};
+    const workspace = useRef({ready, selectedProfile, invoiceId, draft, expenseDirty, profileDirty, configOpen, editingProfileId});
+    workspace.current = {ready, selectedProfile, invoiceId, draft, expenseDirty, profileDirty, configOpen, editingProfileId};
 
     const reportError = (error: unknown) => {
         setError(errorKey(error));
@@ -84,6 +97,9 @@ export default function Home() {
         savedSignature.current = profileSignature(invoice);
         savedInvoiceVersion.current = invoice.id ? recordVersion(invoice) : null;
         setInvoiceId(invoice.id);
+        setCurrency(invoice.currency ?? "USD");
+        setInvoiceEvidence({...("notes" in invoice ? {notes: invoice.notes} : {}), ...("sourceDocuments" in invoice ? {sourceDocuments: invoice.sourceDocuments} : {}),
+            ...("taxReporting" in invoice ? {taxReporting: invoice.taxReporting} : {}), ...("paymentStatus" in invoice ? {paymentStatus: invoice.paymentStatus} : {})});
         setInvoiceNumber(invoice.invoiceNumber); setCreated(invoice.created); setDue(invoice.due);
         setDescription(invoice.description); setQuantity(invoice.quantity); setRate(invoice.rate);
         setPaid(invoice.paid); setShowLogo(invoice.showLogo); setLanguage(invoice.language);
@@ -98,21 +114,25 @@ export default function Home() {
 
     const applyDatabase = (data: Database) => {
         const active = data.profiles.find(profile => profile.id === data.activeProfileId) ?? data.profiles[0];
-        setProfiles(data.profiles); setInvoices(data.invoices);
+        setProfiles(data.profiles); setInvoices(data.invoices); setExpenses(data.expenses ?? []);
         setSelectedProfile(active?.id ?? null);
         resetInvoice(active);
     };
 
-    const confirmDiscard = () => profileSignature(draft) === savedSignature.current ||
-        window.confirm(t("Unsaved invoice changes will be discarded. Continue?"));
+    const confirmDiscard = () => (!expenseDirty || window.confirm(t("Discard unsaved expense changes?"))) &&
+        (profileSignature(draft) === savedSignature.current || window.confirm(t("Unsaved invoice changes will be discarded. Continue?")));
 
-    const openSettings = () => {
+    const editProfile = (activeProfile?: Profile) => {
         savedProfile.current = activeProfile ?? null;
         setEditingProfileId(activeProfile?.id ?? null);
         setProfileName(activeProfile?.name ?? "");
         setProfileCompany(activeProfile?.company ?? blankCompany());
         setProfileLanguage(activeProfile?.language ?? "es");
         setProfileShowLogo(activeProfile?.showLogo ?? true);
+    };
+
+    const openSettings = () => {
+        editProfile(activeProfile);
         configDialog.current?.showModal();
         setConfigOpen(true);
     };
@@ -155,7 +175,7 @@ export default function Home() {
             const current = workspace.current;
             return {ready: current.ready, activeProfileId: current.selectedProfile, selectedInvoiceId: current.invoiceId || null,
                 invoiceDirty: profileSignature(current.draft) !== savedSignature.current,
-                profileDirty: current.profileDirty, editingProfileId: current.editingProfileId, busy: mutationLock.current};
+                expenseDirty: current.expenseDirty, profileDirty: current.profileDirty, editingProfileId: current.editingProfileId, busy: mutationLock.current};
         },
         mutate: async action => {
             if (mutationLock.current) throw new OperationError("BUSY", "Another operation is in progress. Retry when it finishes.");
@@ -168,8 +188,12 @@ export default function Home() {
                 try {
                     const data = await readDatabase();
                     const current = workspace.current;
-                    setProfiles(data.profiles); setInvoices(data.invoices);
-                    if (current.invoiceId && profileSignature(current.draft) === savedSignature.current) {
+                    setProfiles(data.profiles); setInvoices(data.invoices); setExpenses(data.expenses ?? []);
+                    if (!data.profiles.some(profile => profile.id === current.selectedProfile)) {
+                        applyDatabase(data);
+                        editProfile(data.profiles.find(profile => profile.id === data.activeProfileId) ?? data.profiles[0]);
+                        setView(true);
+                    } else if (current.invoiceId && profileSignature(current.draft) === savedSignature.current) {
                         const updated = data.invoices.find(invoice => invoice.id === current.invoiceId);
                         if (updated) applyInvoice(updated);
                     } else if (!current.invoiceId && profileSignature(current.draft) === savedSignature.current) {
@@ -203,6 +227,23 @@ export default function Home() {
                     <a className="workspace-brand" href="/" onClick={event => { event.preventDefault(); setView(true); }}>
                         <span className="workspace-monogram" aria-hidden="true">d.</span>DACC
                     </a>
+                    {listView && <div className="tab-nav" role="group" aria-label={t("Records")}>
+                        {([false, true] as const).map(isExpenses => {
+                            const destination = new URLSearchParams(searchParams);
+                            if (isExpenses) destination.set("view", "expenses");
+                            else destination.delete("view");
+                            const active = expensesView === isExpenses;
+                            return <Link key={String(isExpenses)} to={{search: `?${destination}`}}
+                                aria-current={active ? "page" : undefined}
+                                onClick={event => {
+                                    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                                    if (active || !confirmDiscard()) {event.preventDefault(); return;}
+                                    setExpenseDirty(false);
+                                }}>
+                                {t(isExpenses ? "Expenses" : "Invoices")}
+                            </Link>;
+                        })}
+                    </div>}
                     <span className="workspace-profile" aria-label={t("Active profile")}>
                         {activeProfile?.name ?? t("No profile")}
                     </span>
@@ -215,6 +256,7 @@ export default function Home() {
                                 <path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="white"/><circle cx="15" cy="17" r="3" fill="white"/>
                             </svg>{t("Settings")}
                         </button>
+                        <AccountActions/>
                     </div>
                 </nav>
                 {!configOpen && <div className="noPrint">
@@ -223,14 +265,19 @@ export default function Home() {
                     {message && <p role="status">{t(message)}</p>}
                     {error && <p role="alert">{t(error)}</p>}
                 </div>}
-                {listView && <InvoiceList key={selectedProfile} invoices={visibleInvoices} ready={ready} busy={busy || !activeProfile}
+                {expensesView && activeProfile && <Expenses key={activeProfile.id} profileId={activeProfile.id}
+                    expenses={expenses.filter(item => item.profileId === activeProfile.id)} busy={busy} perform={perform}
+                    onDirtyChange={setExpenseDirty} onSaved={async () => {setExpenses((await readDatabase()).expenses ?? []); setMessage("Expense saved.");}}/>}
+                {listView && !expensesView && <InvoiceList key={selectedProfile} invoices={visibleInvoices} ready={ready} busy={busy || !activeProfile}
                     onCreate={() => {
                         if (!activeProfile || !confirmDiscard()) return;
                         resetInvoice(activeProfile);
+                        setEditingInvoice(true);
                         setMessage(""); setError(""); setView(false);
                     }} onOpen={invoice => {
                         if (invoice.profileId !== selectedProfile || !confirmDiscard()) return;
                         applyInvoice(invoice);
+                        setEditingInvoice(false);
                         setMessage(""); setError(""); setView(false);
                     }}/>}
                 <div hidden={listView} className={styles.workspace}>
@@ -239,7 +286,15 @@ export default function Home() {
                             <span className={styles.step}>01</span>
                             <div><h2 id="invoice-form-title">{t("Invoice")}</h2><p>{t("Document details")}</p></div>
                         </div>
-                        <fieldset disabled={!ready || busy || !activeProfile} className={styles.editor}>
+                        {invoiceReadOnly && <div className="toolbar hstack">
+                            <button disabled={invoiceControlsDisabled} onClick={() => {
+                                setEditingInvoice(true);
+                                requestAnimationFrame(() => invoiceNumberInput.current?.focus());
+                            }}>{t("Edit invoice")}</button>
+                            <button className="secondary" disabled={invoiceControlsDisabled}
+                                onClick={() => window.print()}>{t("Print invoice")}</button>
+                        </div>}
+                        <fieldset disabled={invoiceControlsDisabled || invoiceReadOnly} className={styles.editor}>
                             <label className="form-field">
                                 {t("Invoice #")}
                                 <input ref={invoiceNumberInput} required value={invoiceNumber} placeholder={t("E.g. 2026-001")} onChange={e => setInvoiceNumber(e.target.value)}/>
@@ -274,10 +329,19 @@ export default function Home() {
                                 <input type="checkbox" checked={showLogo} onChange={e => setShowLogo(e.target.checked)}/>
                                 {t("Show logo")}
                             </label>
-                            <label className={styles.checkField}>
-                                <input type="checkbox" checked={paid} onChange={e => setPaid(e.target.checked)}/>
-                                {t("Paid invoice")}
+                            <label className="form-field">{t("Currency")}
+                                <select value={currency} onChange={event => setCurrency(event.target.value as Currency)}>
+                                    <option value="USD">USD</option><option value="EUR">EUR</option><option value="GBP">GBP</option>
+                                </select>
                             </label>
+                            <label className="form-field">{t("Payment status")}
+                                <select value={invoiceEvidence.paymentStatus === "unknown" ? "unknown" : paid ? "paid" : "unpaid"}
+                                    onChange={event => {setPaid(event.target.value === "paid"); setInvoiceEvidence({...invoiceEvidence, paymentStatus: event.target.value === "unknown" ? "unknown" : "confirmed"});}}>
+                                    <option value="unknown">{t("Unknown")}</option><option value="paid">{t("Paid")}</option><option value="unpaid">{t("Unpaid")}</option>
+                                </select>
+                            </label>
+                            <RecordSources record={invoiceEvidence}/>
+
                             <label className="form-field">{t("Invoice language")}
                                 <select value={language} onChange={event => setLanguage(event.target.value as Lang)}>
                                     <option value="es">Español</option><option value="en">English</option>
@@ -285,16 +349,16 @@ export default function Home() {
                             </label>
                             <CompanyForm title={t("Issuing company")} company={company} setCompany={setCompany}/>
                             <CompanyForm title={t("Billing company")} company={companyToBill} setCompany={setCompanyToBill}/>
-                            <div className={styles.actions}>
-                                <button id="printButton" onClick={() => void perform(async () => {
+                            {!invoiceReadOnly && <div className={styles.actions}>
+                                <button id="printButton" disabled={!invoiceDirty} onClick={() => void perform(async () => {
                                     await save();
                                     window.print();
                                 })}>{t("Save and print")}</button>
-                                <button className="secondary" onClick={() => void perform(async () => {
+                                <button className="secondary" disabled={!invoiceDirty} onClick={() => void perform(async () => {
                                     await save();
                                     setMessage("Invoice saved in the active profile.");
                                 })}>{t("Save invoice")}</button>
-                            </div>
+                            </div>}
                         </fieldset>
                     </section>
                     <section className={styles.previewPanel} aria-label={t("Invoice preview")}>
@@ -312,7 +376,8 @@ export default function Home() {
                 ]}
                 showLogo={showLogo}
                 company={company}
-                paid={paid}
+                paid={paid && invoiceEvidence.paymentStatus !== "unknown"}
+                currency={currency}
                 companyToBill={companyToBill}
                 language={language}
             />
@@ -348,7 +413,7 @@ export default function Home() {
                             </select>
                         </label>
                     </div>
-                    <div className="settings-section">
+                    <div className="settings-section vstack">
                     <label className="form-field"><span>{t("Active profile")}</span>
                         <select aria-label={t("Active profile")} value={selectedProfile ?? ""} disabled={!ready || busy}
                             onChange={event => {
@@ -372,6 +437,22 @@ export default function Home() {
                             {profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
                         </select>
                     </label>
+                    {configOpen && activeProfile && <ProfileActions key={activeProfile.id} profile={activeProfile}
+                        count={profiles.length} disabled={!ready || busy} hasUnsavedEdits={profileDirty}
+                        perform={perform} confirmDiscard={confirmDiscard} onChanged={async deleted => {
+                            const data = await readDatabase();
+                            setProfiles(data.profiles); setInvoices(data.invoices); setExpenses(data.expenses ?? []);
+                            if (deleted) {
+                                applyDatabase(data); setView(true); setPendingBackup(null);
+                                editProfile(data.profiles.find(profile => profile.id === data.activeProfileId) ?? data.profiles[0]);
+                                setMessage("Profile deleted.");
+                            } else {
+                                editProfile(data.profiles.find(profile => profile.id === selectedProfile));
+                                setMessage("Profile saved.");
+                            }
+                        }}/>}
+                    {error && <p role="alert">{t(error)}</p>}
+                    {message && <p role="status">{t(message)}</p>}
                     </div>
                     <details className="settings-section settings-disclosure">
                         <summary><div><h3>{t("Profiles and companies")}</h3>

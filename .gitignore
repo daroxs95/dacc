@@ -12,3 +12,6 @@
 **/.dev.vars
 **/.wrangler/
 /apps/dacc/data/
+
+/tools/cloudflare/node_modules/
+/apps/dacc/worker-configuration.d.ts

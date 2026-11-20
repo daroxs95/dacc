@@ -19,9 +19,10 @@ interface InvoiceProps {
     companyToBill?: Company;
     paid?: boolean;
     language: Lang;
+    currency?: string;
 }
 
-export function Invoice({created, due, invoiceNumber, items, showLogo, company, paid, companyToBill, language}: InvoiceProps) {
+export function Invoice({created, due, invoiceNumber, items, showLogo, company, paid, companyToBill, language, currency = "USD"}: InvoiceProps) {
     const frame = useRef<HTMLDivElement>(null);
     const sheet = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(1);
@@ -44,7 +45,8 @@ export function Invoice({created, due, invoiceNumber, items, showLogo, company, 
 
     const total = Number(decimalAmount(items.reduce((acc, curr) => acc + invoiceCents(curr.quantity, curr.rate), 0n)));
 
-    const {t, money, number} = useLang(language);
+    const {t, money: format, number} = useLang(language);
+    const money = (value: number) => format(value, currency);
 
     return (
         <div ref={frame} className={styles.previewFrame} style={{"--preview-scale": scale} as CSSProperties}>

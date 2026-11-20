@@ -2,7 +2,7 @@ export type SiteTool = {
     name: string;
     description: string;
     inputSchema: Record<string, unknown>;
-    annotations: {readOnlyHint: boolean; untrustedContentHint?: boolean};
+    annotations: {readOnlyHint: boolean; destructiveHint?: boolean; untrustedContentHint?: boolean};
     execute: (input: unknown) => Promise<unknown>;
 };
 

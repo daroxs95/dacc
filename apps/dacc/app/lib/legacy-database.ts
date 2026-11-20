@@ -337,6 +337,13 @@ export async function changeRecords<T>(change: (data: Database) => T, request?: 
                         tx.objectStore("invoices").put(invoice);
                         changed.push({kind: "invoice", id: invoice.id, version: recordVersion(invoice)});
                     }
+                    for (const id of beforeProfiles.keys()) {
+                        if (!validated.profiles.some(profile => profile.id === id)) tx.objectStore("businessProfiles").delete(id);
+                    }
+                    for (const id of beforeInvoices.keys()) {
+                        if (!validated.invoices.some(invoice => invoice.id === id)) tx.objectStore("invoices").delete(id);
+                    }
+                    tx.objectStore("settings").put(validated.activeProfileId, "activeProfileId");
                     if (request) tx.objectStore("settings").put({payload: recordVersion(request.payload), result: output, records: changed}, `dacc:request:${request.id}`);
                     result(output);
                 } catch (error) {

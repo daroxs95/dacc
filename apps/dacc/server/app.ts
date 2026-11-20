@@ -4,14 +4,14 @@ import {bodyLimit} from 'hono/body-limit';
 import {Server} from '@modelcontextprotocol/sdk/server/index.js';
 import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import {ListToolsRequestSchema, CallToolRequestSchema} from '@modelcontextprotocol/sdk/types.js';
-import {authenticate, hash, registerAuth, secret, type Environment, type Settings} from './auth';
+import {authenticate, hash, registerAuth, secret, type Environment, type Settings, type User} from './auth';
 import type {Sql} from './sql';
 import {AccountStore} from './store';
 import {createSiteTools} from '../app/lib/site-tools';
 import {parseBackup, validateInvoice, validateProfile} from '../app/lib/data-model';
 import {checkVersion, OperationError} from '../app/lib/record-version';
 
-export function createApp(sql: Sql, settings: Settings) {
+export function createApp(sql: Sql, settings: Settings, mcpUser?: User) {
     const app = new Hono<Environment>();
     const origin = new URL(settings.APP_URL).origin;
     app.use('*', async (c, next) => {
@@ -35,7 +35,8 @@ export function createApp(sql: Sql, settings: Settings) {
     const requireUser: MiddlewareHandler<Environment> = async (c, next) => {
         const bearer = c.req.header('Authorization');
         const token = c.req.path === '/mcp' ? bearer?.match(/^Bearer (\S+)$/)?.[1] : getCookie(c, 'dacc_session');
-        const user = token && await authenticate(sql, token, c.req.path === '/mcp' ? 'credentials' : 'sessions');
+        const user = c.req.path === '/mcp' && mcpUser ? mcpUser
+            : token && await authenticate(sql, token, c.req.path === '/mcp' ? 'credentials' : 'sessions');
         if (!user) return c.json({error: {code: 'UNAUTHENTICATED', message: 'Sign in to DACC.'}}, 401);
         c.set('user', user);
         await next();
@@ -84,6 +85,8 @@ export function createApp(sql: Sql, settings: Settings) {
                         Object.assign(target, source, {id: target.id, name: target.name});
                         data.invoices = [...data.invoices.filter(item => item.profileId !== target.id), ...backup.invoices.filter(item => item.profileId === source.id)
                             .map(item => ({...item, id: crypto.randomUUID(), profileId: target.id}))];
+                        data.expenses = [...(data.expenses ?? []).filter(item => item.profileId !== target.id), ...(backup.expenses ?? []).filter(item => item.profileId === source.id)
+                            .map(item => ({...item, id: crypto.randomUUID(), profileId: target.id}))];
                         break;
                     }
                     case 'importBrowser': {
@@ -91,6 +94,7 @@ export function createApp(sql: Sql, settings: Settings) {
                         const ids = new Map(backup.profiles.map(item => [item.id, crypto.randomUUID()]));
                         data.profiles.push(...backup.profiles.map(item => ({...item, id: ids.get(item.id)!})));
                         data.invoices.push(...backup.invoices.map(item => ({...item, id: crypto.randomUUID(), profileId: ids.get(item.profileId)!})));
+                        if (backup.expenses?.length) data.expenses = [...(data.expenses ?? []), ...backup.expenses.map(item => ({...item, id: crypto.randomUUID(), profileId: ids.get(item.profileId)!}))];
                         data.activeProfileId = ids.get(backup.activeProfileId ?? '') ?? data.activeProfileId;
                         break;
                     }

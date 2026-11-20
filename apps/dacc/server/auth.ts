@@ -14,6 +14,14 @@ export function secret() {
     return Array.from(crypto.getRandomValues(new Uint8Array(32)), value => value.toString(16).padStart(2, '0')).join('');
 }
 
+// Only the local OAuth consent route may resume after Google sign-in.
+export function loginReturnPath(value: string | undefined, appUrl: string) {
+    if (!value?.startsWith('/') || value.startsWith('//')) return '/';
+    const target = new URL(value, appUrl);
+    return target.origin === new URL(appUrl).origin && target.pathname === '/oauth/authorize'
+        ? target.pathname + target.search : '/';
+}
+
 export function registerAuth(app: Hono<Environment>, settings: Settings) {
     const cookieOptions = {httpOnly: true, secure: new URL(settings.APP_URL).protocol === 'https:', sameSite: 'Lax' as const, path: '/'};
     const google = () => new Google(settings.GOOGLE_CLIENT_ID, settings.GOOGLE_CLIENT_SECRET, `${settings.APP_URL}/auth/google/callback`);
@@ -23,7 +31,8 @@ export function registerAuth(app: Hono<Environment>, settings: Settings) {
         const verifier = generateCodeVerifier();
         const sql = c.get('sql');
         await sql.run('DELETE FROM oauth_states WHERE expires_at < ?', [Date.now()]);
-        await sql.run('INSERT INTO oauth_states(hash, verifier, expires_at) VALUES (?, ?, ?)', [await hash(state), verifier, Date.now() + 600000]);
+        await sql.run('INSERT INTO oauth_states(hash, verifier, expires_at, return_to) VALUES (?, ?, ?, ?)',
+            [await hash(state), verifier, Date.now() + 600000, loginReturnPath(c.req.query('return_to'), settings.APP_URL)]);
         setCookie(c, 'dacc_oauth', state, {...cookieOptions, maxAge: 600});
         return c.redirect(google().createAuthorizationURL(state, verifier, ['openid', 'email', 'profile']).toString());
     });
@@ -34,7 +43,7 @@ export function registerAuth(app: Hono<Environment>, settings: Settings) {
         deleteCookie(c, 'dacc_oauth', cookieOptions);
         if (!state || !code || state !== cookie) return c.text('Login expired. Start again.', 400);
         const sql = c.get('sql');
-        const attempt = await sql.first<{verifier: string}>('DELETE FROM oauth_states WHERE hash = ? AND expires_at > ? RETURNING verifier', [await hash(state), Date.now()]);
+        const attempt = await sql.first<{verifier: string; return_to: string}>('DELETE FROM oauth_states WHERE hash = ? AND expires_at > ? RETURNING verifier, return_to', [await hash(state), Date.now()]);
         if (!attempt) return c.text('Login expired. Start again.', 400);
         try {
             const tokens = await google().validateAuthorizationCode(code, attempt.verifier);
@@ -48,7 +57,7 @@ export function registerAuth(app: Hono<Environment>, settings: Settings) {
             const token = secret();
             await sql.run('INSERT INTO sessions(hash, user_id, expires_at) VALUES (?, ?, ?)', [await hash(token), user!.id, Date.now() + 30 * 86400000]);
             setCookie(c, 'dacc_session', token, {...cookieOptions, maxAge: 30 * 86400});
-            return c.redirect('/');
+            return c.redirect(loginReturnPath(attempt.return_to, settings.APP_URL));
         } catch {
             return c.text('Google login failed. Please start again.', 400);
         }
