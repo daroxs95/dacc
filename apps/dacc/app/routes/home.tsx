@@ -6,7 +6,7 @@ import {InvoiceList} from "~/components/InvoiceList";
 import CompanyForm from "~/components/CompanyForm/CompanyForm";
 import {useLang, type Lang} from "~/hooks/useLang";
 import {useSiteTools} from "~/hooks/useSiteTools";
-import {createSiteTools, type ImportPreviews} from "~/lib/site-tools";
+import {createRemoteTools} from "~/lib/remote-tools";
 import {OperationError, recordVersion} from "~/lib/record-version";
 import {errorKey, type MessageKey} from "~/lib/i18n";
 import {blankCompany, createProfileBackup, loadDatabase, MAX_BACKUP_BYTES, parseBackup, readDatabase, restoreProfileBackup, saveProfile, saveInvoice, selectProfile, type Profile, type InvoiceRecord, type Database} from "~/lib/database";
@@ -67,7 +67,7 @@ export default function Home() {
     const savedInvoiceVersion = useRef<string | null>(null);
     const savedProfile = useRef<Profile | null>(null);
     const mutationLock = useRef(false);
-    const importPreviews = useRef<ImportPreviews>(new Map());
+
     const profileForm = {name: profileName, company: profileCompany, language: profileLanguage, showLogo: profileShowLogo};
     const baselineProfile = savedProfile.current;
     const profileDirty = configOpen && recordVersion(profileForm) !== recordVersion(baselineProfile ? {
@@ -150,7 +150,7 @@ export default function Home() {
         return () => { active = false; };
     }, []);
 
-    useSiteTools(ready, createSiteTools({
+    useSiteTools(ready, createRemoteTools({
         context: () => {
             const current = workspace.current;
             return {ready: current.ready, activeProfileId: current.selectedProfile, selectedInvoiceId: current.invoiceId || null,
@@ -194,7 +194,7 @@ export default function Home() {
                 });
             }
         },
-    }, importPreviews.current));
+    }));
 
     return (
         <div className={styles.app}>
@@ -418,7 +418,7 @@ export default function Home() {
                     </details>
                     <section className="settings-section" aria-labelledby="backup-title">
                     <h3 id="backup-title">{t("Backups")}</h3>
-                    <p className="settings-description">{t("Your data is stored in this browser.")}</p>
+                    <p className="settings-description">{t("Your data is saved to your account.")}</p>
                     <div className="settings-action">
                         <div><h4>{t("Download backup")}</h4><p className="settings-description">{t("The active profile and its saved invoices in one file.")}</p></div>
                         <button className="secondary compact" disabled={!ready || busy || !activeProfile} onClick={() => void perform(async () => {
@@ -453,7 +453,7 @@ export default function Home() {
                                     });
                                 }}/>
                     </div>
-                    <p className="settings-note">{t("Save a backup before clearing browser data.")}</p>
+                    <p className="settings-note">{t("Keep a backup of your account data.")}</p>
                     {pendingBackup && <div className="vstack">
                         <label className="form-field">{t("Profile from backup")}
                             <select disabled={busy} value={pendingBackup.sourceId} onChange={event => setPendingBackup({...pendingBackup, sourceId: event.target.value})}>

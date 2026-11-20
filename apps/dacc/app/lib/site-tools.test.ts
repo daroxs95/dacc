@@ -1,7 +1,8 @@
+import * as legacyStore from "./legacy-database";
 import {beforeEach, test} from "node:test";
 import assert from "node:assert/strict";
 import {IDBFactory} from "fake-indexeddb";
-import {changeRecords, createBackup, readDatabase, restoreBackup, saveInvoice, saveProfile, type InvoiceRecord, type Profile} from "./database";
+import {changeRecords, createBackup, readDatabase, restoreBackup, saveInvoice, saveProfile, type InvoiceRecord, type Profile} from "./legacy-database";
 import {createSiteTools, type WorkspaceContext} from "./site-tools";
 import {recordVersion} from "./record-version";
 
@@ -30,7 +31,7 @@ beforeEach(async () => {
     globalThis.indexedDB = new IDBFactory();
     await restoreBackup(createBackup({profiles: [profile, {...profile, id: "p2", name: "Two"}], invoices: [invoice], activeProfileId: "p1"}));
     state = {ready: true, activeProfileId: "p1", selectedInvoiceId: null, invoiceDirty: false, profileDirty: false, editingProfileId: null, busy: false};
-    tools = createSiteTools({context: () => state, mutate: action => action()});
+    tools = createLegacyTools({context: () => state, mutate: action => action()});
 });
 
 test("tool schemas reject unknown fields, nonfinite amounts and ownership changes", async () => {
@@ -163,7 +164,7 @@ test("manual creates also reject duplicate numbers and excessive amounts", async
 
 test("preview handles expire and profile creation retries do not duplicate profiles", async () => {
     const previews = new Map();
-    tools = createSiteTools({context: () => state, mutate: action => action()}, previews);
+    tools = createLegacyTools({context: () => state, mutate: action => action()}, previews);
     const preview = await success<{previewId: string}>("preview_import", {profileId: "p1", invoices: [{...inputInvoice, invoiceNumber: "002"}]});
     previews.get(preview.previewId).expiresAt = 0;
     await failure("apply_import", {previewId: preview.previewId}, "PREVIEW_EXPIRED");
@@ -173,3 +174,5 @@ test("preview handles expire and profile creation retries do not duplicate profi
     assert.deepEqual(await success("create_profile", args), first);
     assert.equal((await readDatabase()).profiles.length, 3);
 });
+
+function createLegacyTools(bridge: Parameters<typeof createSiteTools>[0], previews?: Parameters<typeof createSiteTools>[1]) { return createSiteTools(bridge, previews, legacyStore); }

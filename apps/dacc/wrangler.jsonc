@@ -1,0 +1,30 @@
+{
+  "$schema": "tools/cloudflare/node_modules/wrangler/config-schema.json",
+  "name": "dacc",
+  "account_id": "3b3aaff96cd9b76205198a4030053313",
+  "main": "server/worker.ts",
+  "compatibility_date": "2025-11-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "dacc.darodev.site", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": "build/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/auth/*", "/mcp"]
+  },
+  // GOOGLE_CLIENT_ID is a dashboard variable and GOOGLE_CLIENT_SECRET a Worker
+  // secret. keep_vars stops deploys from removing variables set in the dashboard.
+  "keep_vars": true,
+  "vars": { "APP_URL": "https://dacc.darodev.site" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "dacc", "database_id": "d358065a-cc22-4895-8b80-4fafbf777dcd", "migrations_dir": "migrations" }
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.01 }
+  }
+}
