@@ -14,6 +14,9 @@ jobs:
   checks:
     name: Validate app
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/dacc
     steps:
       - uses: actions/checkout@v3
         with:
@@ -23,6 +26,7 @@ jobs:
         with:
           node-version: 22.x
           cache: 'npm'
+          cache-dependency-path: apps/dacc/package-lock.json
       - run: npm ci
       - run: npm test
       - run: npm run typecheck

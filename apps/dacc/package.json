@@ -5,14 +5,15 @@
   "scripts": {
     "build": "react-router build",
     "dev": "react-router dev",
-    "start": "vite preview --host 0.0.0.0",
-    "test": "tsx --test app/lib/*.test.ts",
+    "start": "tsx --env-file-if-exists=.env server/node.ts",
+    "test": "node --experimental-sqlite --import tsx --test app/lib/*.test.ts server/*.test.ts",
     "typecheck": "react-router typegen && tsc",
+    "dev:server": "tsx watch --env-file-if-exists=.env server/node.ts",
     "setup:cloudflare": "npm --prefix tools/cloudflare ci",
     "cloudflare": "node ./tools/cloudflare/node_modules/wrangler/bin/wrangler.js",
-    "deploy": "npm run build && npm run cloudflare -- deploy",
-    "deploy:dry-run": "npm run build && npm run cloudflare -- deploy --dry-run",
-    "preview:cloudflare": "npm run build && npm run cloudflare -- dev"
+    "dev:cloudflare": "npm run build && npm run cloudflare -- dev",
+    "db:migrate:cloudflare": "npm run cloudflare -- d1 migrations apply dacc --remote",
+    "deploy:cloudflare": "npm run build && npm run cloudflare -- deploy"
   },
   "dependencies": {
     "@react-router/node": "^7.1.5",
@@ -20,7 +21,12 @@
     "isbot": "^5.1.17",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router": "^7.1.5"
+    "react-router": "^7.1.5",
+    "hono": "^4.10.0",
+    "@hono/node-server": "^1.19.0",
+    "@modelcontextprotocol/sdk": "^1.25.0",
+    "arctic": "^3.7.0",
+    "better-sqlite3": "^11.10.0"
   },
   "devDependencies": {
     "@react-router/dev": "^7.1.5",
@@ -32,6 +38,8 @@
     "tsx": "^4.23.15",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",
-    "vite-tsconfig-paths": "^5.1.4"
+    "vite-tsconfig-paths": "^5.1.4",
+    "@types/better-sqlite3": "^7.6.13",
+    "@cloudflare/workers-types": "^4.20251117.0"
   }
 }

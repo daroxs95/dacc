@@ -2,7 +2,7 @@ import {beforeEach, test} from "node:test";
 import assert from "node:assert/strict";
 import {IDBFactory} from "fake-indexeddb";
 import {createProfileBackup, restoreProfileBackup, createBackup, loadDatabase, parseBackup, readDatabase, readInvoices, restoreBackup,
-    saveProfile, saveInvoice, selectProfile, type Profile, type InvoiceRecord, type Database} from "./database";
+    saveProfile, saveInvoice, selectProfile, type Profile, type InvoiceRecord, type Database} from "./legacy-database";
 
 const company = {name: "Acme", address: "Street", city: "Paris", country: "France", email: "a@example.com", postalCode: "75001"};
 const profile: Profile = {id: "p1", name: "Work", company, language: "en", showLogo: true};

@@ -7,13 +7,14 @@ import {
   ScrollRestoration,
 } from "react-router";
 
+import {Account} from "./components/Account";
 import type { Route } from "./+types/root";
 import {useEffect, useState} from "react";
 import {LanguageContext, useLang, type Lang} from "./hooks/useLang";
 import {LANGUAGE_STORAGE_KEY, resolveLanguage, translate} from "./lib/i18n";
 import "./app.css";
-import "../decss/utils/all_styles.mjs";
-import "../decss/utils/all_classes.mjs";
+import "../../../decss/utils/all_styles.mjs";
+import "../../../decss/utils/all_classes.mjs";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -60,7 +61,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />;
+  return <Account><Outlet /></Account>;
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
