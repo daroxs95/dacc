@@ -2,7 +2,7 @@ import {validateDatabase, validateInvoiceAmount, type Database} from './data-mod
 import {OperationError, recordVersion} from './record-version';
 
 export type MutationRequest = {id: string; payload: unknown};
-export type Receipt = {payload: string; result: unknown; records: Array<{kind: 'profiles' | 'invoices'; id: string; version: string}>};
+export type Receipt = {payload: string; result: unknown; records: Array<{kind: 'profiles' | 'invoices' | 'expenses'; id: string; version: string}>};
 export type DataStore = {
     readDatabase: () => Promise<Database>;
     changeRecords: <T>(change: (data: Database) => T, request?: MutationRequest) => Promise<T>;
@@ -14,7 +14,7 @@ export function applyChange<T>(data: Database, change: (data: Database) => T, re
     if (old) {
         if (old.payload !== recordVersion(request!.payload)) throw new OperationError('REQUEST_CONFLICT', 'Request ID already used with different content.');
         for (const entry of old.records) {
-            const current = data[entry.kind].find(item => item.id === entry.id);
+            const current = (data[entry.kind] ?? []).find(item => item.id === entry.id);
             if (!current || recordVersion(current) !== entry.version) throw new OperationError('STALE_REQUEST', 'The original result changed.');
         }
         return old.result as T;
@@ -23,9 +23,9 @@ export function applyChange<T>(data: Database, change: (data: Database) => T, re
     const result = change(data);
     const validated = validateDatabase(data);
     const changed: Receipt['records'] = [];
-    for (const kind of ['profiles', 'invoices'] as const) {
-        for (const item of validated[kind]) {
-            if (recordVersion(before[kind].find(old => old.id === item.id)) === recordVersion(item)) continue;
+    for (const kind of ['profiles', 'invoices', 'expenses'] as const) {
+        for (const item of (validated[kind] ?? [])) {
+            if (recordVersion((before[kind] ?? []).find(old => old.id === item.id)) === recordVersion(item)) continue;
             changed.push({kind, id: item.id, version: recordVersion(item)});
         }
     }
@@ -37,6 +37,15 @@ export function applyChange<T>(data: Database, change: (data: Database) => T, re
         if (!allowLegacyDuplicates && previous?.invoiceNumber !== invoice.invoiceNumber && validated.invoices.some(item => item.id !== invoice.id &&
             item.profileId === invoice.profileId && item.invoiceNumber.trim() === invoice.invoiceNumber.trim())) {
             throw new OperationError('DUPLICATE_INVOICE', 'This invoice number already exists in the profile.');
+        }
+    }
+    for (const expense of validated.expenses ?? []) {
+        const previous = before.expenses?.find(item => item.id === expense.id);
+        if (recordVersion(previous) === recordVersion(expense)) continue;
+        if ((previous?.reference !== expense.reference || previous?.supplier !== expense.supplier) &&
+            validated.expenses!.some(item => item.id !== expense.id && item.profileId === expense.profileId &&
+                item.supplier.trim().toLowerCase() === expense.supplier.trim().toLowerCase() && item.reference.trim() === expense.reference.trim())) {
+            throw new OperationError('DUPLICATE_EXPENSE', 'This expense already exists in the profile.');
         }
     }
     if (request) receipts[receiptKey] = {payload: recordVersion(request.payload), result, records: changed};
