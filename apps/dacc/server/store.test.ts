@@ -68,3 +68,28 @@ test('import previews persist across requests and remain account scoped', async 
         assert.equal(other.previews.size, 0);
     } finally { database.close(); }
 });
+
+test('profile deletion persists through MCP tool requests, is account scoped and rejects concurrent writes', async () => {
+    const {sql, database} = fixture();
+    const bridge = {context: () => ({ready: true, activeProfileId: null, selectedInvoiceId: null, invoiceDirty: false, profileDirty: false, editingProfileId: null, busy: false}), mutate: (action: () => Promise<unknown>) => action()};
+    const call = async (store: AccountStore, name: string, args: unknown) =>
+        await createSiteTools(bridge, store.previews, store).find(tool => tool.name === 'dacc_' + name)!.execute(args) as {ok: boolean; data: {version: string}; error?: {code: string}};
+    try {
+        const a = await new AccountStore(sql, 'a').open();
+        const original = (await a.readDatabase()).profiles[0];
+        await a.changeRecords(data => { data.profiles.push({...original, id: 'empty', name: 'Empty'}); });
+        const preview = await call(a, 'preview_profile_deletion', {profileId: 'empty'});
+        const args = {profileId: 'empty', expectedVersion: preview.data.version, requestId: 'delete-empty', emptyOnly: true};
+        const b = await new AccountStore(sql, 'b').open();
+        assert.equal((await call(b, 'delete_profile', args)).error?.code, 'NOT_FOUND');
+        const stale = await new AccountStore(sql, 'a').open();
+        await a.changeRecords(data => { data.profiles[0].name = 'Retained'; });
+        assert.equal((await call(stale, 'delete_profile', args)).error?.code, 'STALE_VERSION');
+        const fresh = await new AccountStore(sql, 'a').open();
+        assert.equal((await call(fresh, 'delete_profile', args)).ok, true);
+        const reopened = await new AccountStore(sql, 'a').open();
+        assert.equal((await call(reopened, 'delete_profile', args)).ok, true);
+        assert.deepEqual((await reopened.readDatabase()).profiles, [{...original, name: 'Retained'}]);
+        assert.equal((await b.readDatabase()).profiles.length, 1);
+    } finally { database.close(); }
+});

@@ -13,7 +13,7 @@ export function useLang(override?: Lang) {
         language,
         setLanguage: context.setLanguage,
         t: (key: MessageKey, values?: Record<string, string | number>) => translate(language, key, values),
-        money: (value: number) => formatMoney(language, value),
+        money: (value: number, currency = "USD") => formatMoney(language, value, currency),
         number: (value: number) => new Intl.NumberFormat(language).format(value),
     };
 }

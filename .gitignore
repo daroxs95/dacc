@@ -16,3 +16,6 @@ node_modules/
 **/.wrangler/
 /.vercel/
 /apps/dacc/data/
+
+/tools/cloudflare/node_modules/
+/apps/dacc/worker-configuration.d.ts

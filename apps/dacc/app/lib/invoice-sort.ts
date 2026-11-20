@@ -16,6 +16,9 @@ export function sortInvoices(invoices: InvoiceRecord[], column: InvoiceSortColum
         }
     };
     return [...invoices].sort((a, b) => {
+        if (column === "total" && (a.currency ?? "USD") !== (b.currency ?? "USD")) {
+            return collator.compare(a.currency ?? "USD", b.currency ?? "USD");
+        }
         const left = value(a), right = value(b);
         // Keep missing numbers, clients and dates at the end in either direction.
         if (left === "" || right === "") return left === right ? 0 : left === "" ? 1 : -1;

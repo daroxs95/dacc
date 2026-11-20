@@ -11,7 +11,9 @@ export function createRemoteTools(bridge: WorkspaceBridge) {
         const args = input as {invoiceId?: string; profileId?: string};
         const state = bridge.context();
         if (!tool.annotations.readOnlyHint && ((state.invoiceDirty && args?.invoiceId === state.selectedInvoiceId) ||
-            (state.profileDirty && args?.profileId === state.editingProfileId))) {
+            (state.profileDirty && args?.profileId === state.editingProfileId) ||
+            (state.expenseDirty && args?.profileId === state.activeProfileId) ||
+            (tool.name === "dacc_delete_profile" && state.invoiceDirty && args?.profileId === state.activeProfileId))) {
             return {ok: false, error: {code: 'EDITOR_CONFLICT', message: 'Save or discard unsaved edits before retrying.'}};
         }
         const action = () => api('/api/tools/' + tool.name, input);

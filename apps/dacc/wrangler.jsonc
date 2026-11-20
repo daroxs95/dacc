@@ -1,30 +1,56 @@
 {
-  "$schema": "tools/cloudflare/node_modules/wrangler/config-schema.json",
+  "$schema": "../../tools/cloudflare/node_modules/wrangler/config-schema.json",
   "name": "dacc",
-  "account_id": "3b3aaff96cd9b76205198a4030053313",
   "main": "server/worker.ts",
   "compatibility_date": "2025-11-17",
-  "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
-  "routes": [
-    { "pattern": "dacc.darodev.site", "custom_domain": true }
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
   ],
   "assets": {
     "directory": "build/client",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/auth/*", "/mcp"]
+    "run_worker_first": [
+      "/api/*",
+      "/auth/*",
+      "/mcp",
+      "/oauth/*",
+      "/.well-known/*"
+    ]
   },
-  // GOOGLE_CLIENT_ID is a dashboard variable and GOOGLE_CLIENT_SECRET a Worker
-  // secret. keep_vars stops deploys from removing variables set in the dashboard.
-  "keep_vars": true,
-  "vars": { "APP_URL": "https://dacc.darodev.site" },
+  "vars": {
+    "APP_URL": "https://dacc.darodev.site",
+    "GOOGLE_CLIENT_ID": "367142717139-c43bsb5mjdi8qhh0k2irkfp69d4ull03.apps.googleusercontent.com"
+  },
   "d1_databases": [
-    { "binding": "DB", "database_name": "dacc", "database_id": "d358065a-cc22-4895-8b80-4fafbf777dcd", "migrations_dir": "migrations" }
+    {
+      "binding": "DB",
+      "database_name": "dacc",
+      "database_id": "d358065a-cc22-4895-8b80-4fafbf777dcd",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "account_id": "3b3aaff96cd9b76205198a4030053313",
+  "kv_namespaces": [
+    {"binding": "OAUTH_KV", "id": "4808ab2d54e647e7ad1481d653832922"}
+  ],
+  "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "dacc.darodev.site",
+      "custom_domain": true
+    }
   ],
   "observability": {
     "enabled": true,
-    "logs": { "enabled": true, "head_sampling_rate": 1 },
-    "traces": { "enabled": true, "head_sampling_rate": 0.01 }
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01
+    }
   }
 }

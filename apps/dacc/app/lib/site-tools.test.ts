@@ -38,7 +38,7 @@ test("tool schemas reject unknown fields, nonfinite amounts and ownership change
     const before = await readDatabase();
     await failure("get_context", {unexpected: true}, "VALIDATION_ERROR");
     await failure("search_invoices", {profileId: "p1", limit: 101}, "VALIDATION_ERROR");
-    await failure("create_invoice", {profileId: "p1", requestId: "x", invoice: {...inputInvoice, currency: "EUR"}}, "VALIDATION_ERROR");
+    await failure("create_invoice", {profileId: "p1", requestId: "x", invoice: {...inputInvoice, currency: "JPY"}}, "VALIDATION_ERROR");
     await failure("create_invoice", {profileId: "p1", requestId: "x", invoice: {...inputInvoice, rate: Infinity}}, "VALIDATION_ERROR");
     await failure("update_invoice", {profileId: "p1", invoiceId: "i1", expectedVersion: recordVersion(invoice), patch: {profileId: "p2"}}, "VALIDATION_ERROR");
     await failure("get_invoice", {profileId: "p2", invoiceId: "i1"}, "NOT_FOUND");
@@ -176,3 +176,65 @@ test("preview handles expire and profile creation retries do not duplicate profi
 });
 
 function createLegacyTools(bridge: Parameters<typeof createSiteTools>[0], previews?: Parameters<typeof createSiteTools>[1]) { return createSiteTools(bridge, previews, legacyStore); }
+
+test("rename preserves defaults and invoice snapshots, rejecting blank and stale names", async () => {
+    await failure("rename_profile", {profileId: "p1", name: "   ", expectedVersion: recordVersion(profile)}, "VALIDATION_ERROR");
+    const result = await success<{profile: Profile}>("rename_profile", {profileId: "p1", name: " Renamed ", expectedVersion: recordVersion(profile)});
+    assert.deepEqual(result.profile, {...profile, name: "Renamed"});
+    assert.deepEqual((await readDatabase()).invoices, [invoice]);
+    await failure("rename_profile", {profileId: "p1", name: "Stale", expectedVersion: recordVersion(profile)}, "STALE_VERSION");
+});
+type DeletionPreview = {version: string; empty: boolean; canDelete: boolean; invoiceCount: number; hasCompanyDetails: boolean};
+const deletionPreview = (profileId: string) => success<DeletionPreview>("preview_profile_deletion", {profileId});
+
+test("deletion previews protect company details, invoices, retries and the last profile", async () => {
+    const before = await readDatabase();
+    const preview = await deletionPreview("p1");
+    assert.equal(preview.invoiceCount, 1);
+    assert.equal(preview.hasCompanyDetails, true);
+    assert.equal(preview.empty, false);
+    assert.deepEqual(await readDatabase(), before);
+    await failure("delete_profile", {profileId: "p1", expectedVersion: preview.version, requestId: "nonempty", emptyOnly: true}, "PROFILE_NOT_EMPTY");
+    const other = await deletionPreview("p2");
+    assert.equal(other.invoiceCount, 0);
+    assert.equal(other.empty, false);
+    await failure("delete_profile", {profileId: "p2", expectedVersion: other.version, requestId: "company", emptyOnly: true}, "PROFILE_NOT_EMPTY");
+    const args = {profileId: "p1", expectedVersion: preview.version, requestId: "delete"};
+    const removed = await success("delete_profile", args);
+    assert.deepEqual(await success("delete_profile", args), removed);
+    assert.deepEqual(await readDatabase(), {profiles: [before.profiles[1]], invoices: [], activeProfileId: "p2"});
+    const last = await deletionPreview("p2");
+    assert.equal(last.canDelete, false);
+    await failure("delete_profile", {profileId: "p2", expectedVersion: last.version, requestId: "last"}, "LAST_PROFILE");
+});
+
+test("empty deletion preserves other profiles and invoices", async () => {
+    await saveProfile({...profile, id: "p2", name: "Empty", company: {name: "", address: "", city: "", country: "", email: "", postalCode: ""}});
+    const preview = await deletionPreview("p2");
+    assert.equal(preview.empty, true);
+    await success("delete_profile", {profileId: "p2", expectedVersion: preview.version, requestId: "empty", emptyOnly: true});
+    assert.deepEqual(await readDatabase(), {profiles: [profile], invoices: [invoice], activeProfileId: "p1"});
+});
+
+test("deletion rejects changed profile details and changed or added invoices", async () => {
+    const first = await deletionPreview("p1");
+    await saveProfile({...profile, name: "Changed"});
+    await failure("delete_profile", {profileId: "p1", expectedVersion: first.version, requestId: "stale1"}, "STALE_VERSION");
+    const second = await deletionPreview("p1");
+    await saveInvoice({...invoice, rate: 42}, "p1");
+    await failure("delete_profile", {profileId: "p1", expectedVersion: second.version, requestId: "stale2"}, "STALE_VERSION");
+    const third = await deletionPreview("p1");
+    await saveInvoice({...invoice, id: "new", invoiceNumber: "002"}, "p1");
+    await failure("delete_profile", {profileId: "p1", expectedVersion: third.version, requestId: "stale3"}, "STALE_VERSION");
+    assert.equal((await readDatabase()).invoices.length, 2);
+});
+
+test("deletion protects unsaved new invoices and profile forms", async () => {
+    const preview = await deletionPreview("p1");
+    const args = {profileId: "p1", expectedVersion: preview.version, requestId: "dirty"};
+    state.invoiceDirty = true; state.selectedInvoiceId = null;
+    await failure("delete_profile", args, "EDITOR_CONFLICT");
+    state.invoiceDirty = false; state.editingProfileId = "p1"; state.profileDirty = true;
+    await failure("delete_profile", args, "EDITOR_CONFLICT");
+    assert.equal((await readDatabase()).profiles.length, 2);
+});
